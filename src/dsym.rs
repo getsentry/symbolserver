@@ -1,76 +1,56 @@
-use std::io::prelude::*;
-use std::process::{Command, Stdio};
+use std::io::prelude::BufRead;
 use std::io::BufReader;
+use std::process;
 
-pub fn call_llvm_nm() {
-    let output = Command::new("nm")
-                         .arg("-numeric-sort")
-                         .arg("-arch")
-                         .arg("x86_64")
-                         .arg("/Users/haza/Library/Developer/Xcode/DerivedData/SwiftExample-grojhfhmkdyokpfbpjwzjavxvgtz/Build/Products/Release-iphonesimulator/SwiftExample.app.dSYM/Contents/Resources/DWARF/SwiftExample")
-                         .stdout(Stdio::piped())
-                         .spawn()
-                         .expect("failed to execute process");
+use super::Result;
 
-    let reader = BufReader::new(output.stdout.unwrap());
-    for line in reader.lines() {
-        let uline = line.unwrap();
-        let v: Vec<&str> = uline.trim().split(' ').collect();
-        if v.len() != 3 {
-            panic!("wrong symbol count");
-        }
-        let symbol_type = v[1];
-        if symbol_type == "t" || symbol_type == "T" {
-            let symbol = v[2];
-            let address = i64::from_str_radix(v[0], 16).unwrap();
-            println!("{}", address);
-            println!("{}", symbol);
-        }
+pub struct SymbolIterator {
+    buf: String,
+    prc: process::Child,
+    rdr: BufReader<process::ChildStdout>,
+}
+
+impl SymbolIterator {
+    pub fn new(arch: &str, dsym_path: &str) -> Result<SymbolIterator> {
+        let mut child = process::Command::new("nm")
+            .arg("-numeric-sort")
+            .arg("-arch")
+            .arg(arch)
+            .arg(dsym_path)
+            .stdout(process::Stdio::piped())
+            .spawn()?;
+        let stdout = child.stdout.take().unwrap();
+        Ok(SymbolIterator {
+            buf: String::new(),
+            prc: child,
+            rdr: BufReader::new(stdout),
+        })
     }
 }
 
-// pub fn call_llvm_nm() -> Child {
-//     return Command::new("nm")
-//             .arg("-numeric-sort")
-//             .arg("-arch")
-//             .arg("x86_64")
-//             .arg("/Users/haza/Library/Developer/Xcode/DerivedData/SwiftExample-grojhfhmkdyokpfbpjwzjavxvgtz/Build/Products/Release-iphonesimulator/SwiftExample.app.dSYM/Contents/Resources/DWARF/SwiftExample")
-//             .stdout(Stdio::piped())
-//             .spawn()
-//             .expect("failed to execute process");
-// }
+impl Iterator for SymbolIterator {
+    type Item = (u64, String);
 
-// /// Represents a reference to a dsym
-// #[derive(PartialEq, Debug)]
-// pub struct DsymRef {
-//     /// Symbolname
-//     pub symbol: String,
-//     /// Address of the symbol
-//     pub address: u64,
-// }
+    fn next(&mut self) -> Option<(u64, String)> {
+        loop {
+            self.buf.clear();
+            if self.rdr.read_line(&mut self.buf).unwrap_or(0) == 0 {
+                break;
+            }
+            let v : Vec<_> = self.buf.trim().split(' ').collect();
+            if v[1] != "t" && v[1] != "T" {
+                continue;
+            }
+            if let Ok(addr) = u64::from_str_radix(v[0], 16) {
+                return Some((addr, v[2].into()));
+            }
+        }
+        None
+    }
+}
 
-// impl DsymRef {
-
-// }
-
-// pub fn call_llvm(process: &mut Child) -> Result<DsymRef> {
-//     if let Ok(mut stdout) = process.wait_with_output() {
-//         for line in BufReader::new(stdout).lines() {
-//             let line = line?;
-//             let v: Vec<&str> = line.trim().split(' ').collect();
-//             if v.len() != 3 {
-//                 panic!("wrong symbol count");
-//             }
-//             let symbol_type = v[1];
-//             if symbol_type == "t" || symbol_type == "T" {
-//                 let symbol = v[2];
-//                 println!("{}", symbol);
-
-//                 return Ok(DsymRef {
-//                     symbol: symbol,
-//                     address: u64::from_str_radix(v[0], 16)?
-//                 });
-//             }
-//         }
-//     }
-// }
+impl Drop for SymbolIterator {
+    fn drop(&mut self) {
+        self.prc.kill().ok();
+    }
+}
