@@ -8,6 +8,8 @@ extern crate zip;
 extern crate walkdir;
 extern crate regex;
 #[macro_use] extern crate lazy_static;
+extern crate mach_object;
+extern crate memmap;
 
 pub use errors::{Result, Error, ErrorKind};
 
