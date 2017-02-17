@@ -1,3 +1,4 @@
+//! Provides SDK Information
 use std::fs;
 use std::path::Path;
 
@@ -18,6 +19,7 @@ fn get_sdk_name_from_folder(folder: &str) -> Option<&'static str> {
     }
 }
 
+/// Information of the SDK
 #[derive(Debug)]
 pub struct SdkInfo {
     /// The name of the SDK (iOS, tvOS etc.)
