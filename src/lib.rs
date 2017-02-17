@@ -1,3 +1,4 @@
+//! This crate implements symbol handling for system libraries
 #![recursion_limit = "1024"]
 
 #[macro_use] extern crate serde_derive;
@@ -18,3 +19,4 @@ mod macros;
 mod errors;
 pub mod dsym;
 pub mod sdk;
+pub mod memdb;

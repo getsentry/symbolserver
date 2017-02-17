@@ -1,10 +1,15 @@
 use std::io;
 
 use mach_object;
+use zip;
+use walkdir;
 
 
 error_chain! {
     errors {
+        UnknownSdk {
+            description("unknown SDK")
+        }
         UnknownArchitecture(arch: String) {
             description("unknown architecture")
             display("unknown architecture: '{}'", arch)
@@ -17,6 +22,8 @@ error_chain! {
 
     foreign_links {
         Io(io::Error);
+        WalkDir(walkdir::Error);
         MachO(mach_object::Error);
+        Zip(zip::result::ZipError);
     }
 }

@@ -1,14 +1,25 @@
 //! Provides SDK Information
 use std::fs;
-use std::path::Path;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 use zip;
 use walkdir;
+use memmap;
 use regex::Regex;
 
-pub enum SdkSource {
-    Zip(zip::ZipArchive<fs::File>),
-    Dir(walkdir::Iter),
+use super::{Result, Error, ErrorKind};
+use super::dsym::Object;
+
+
+enum ObjectIterSource {
+    Zip {
+        archive: zip::ZipArchive<fs::File>,
+        idx: usize,
+    },
+    Dir {
+        dir_iter: walkdir::Iter,
+    }
 }
 
 fn get_sdk_name_from_folder(folder: &str) -> Option<&'static str> {
@@ -35,6 +46,16 @@ pub struct SdkInfo {
     /// The SDK flavour (this is currently only used for watchOS)
     /// where this can be `Watch2,2` for instance.
     pub flavour: Option<String>,
+}
+
+pub struct ObjectsIter<'a> {
+    info: &'a SdkInfo,
+    source: ObjectIterSource,
+}
+
+pub struct SdkProcessor {
+    path: PathBuf,
+    info: SdkInfo,
 }
 
 impl SdkInfo {
@@ -65,6 +86,77 @@ impl SdkInfo {
             version_patchlevel: try_opt!(caps.get(3).map(|x| x.as_str()).unwrap_or("0").parse().ok()),
             build: try_opt!(caps.get(4).map(|x| x.as_str().to_string())),
             flavour: None,
+        })
+    }
+}
+
+impl ObjectIterSource {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<ObjectIterSource> {
+        let md = fs::metadata(path.as_ref())?;
+        if md.is_file() {
+            let f = fs::File::open(path.as_ref())?;
+            let zip = zip::ZipArchive::new(f)?;
+            Ok(ObjectIterSource::Zip {
+                archive: zip,
+                idx: 0,
+            })
+        } else {
+            Ok(ObjectIterSource::Dir {
+                dir_iter: walkdir::WalkDir::new(path.as_ref()).into_iter(),
+            })
+        }
+    }
+}
+
+impl<'a> Iterator for ObjectsIter<'a> {
+    type Item = Result<Object<'a>>;
+
+    fn next(&mut self) -> Option<Result<Object<'a>>> {
+        loop {
+            match self.source {
+                ObjectIterSource::Zip { ref mut archive, ref mut idx } => {
+                    if *idx >= archive.len() {
+                        break;
+                    }
+                    let mut f = iter_try!(archive.by_index(*idx));
+                    *idx += 1;
+                    let mut buf : Vec<u8> = vec![];
+                    iter_try!(f.read_to_end(&mut buf));
+                    return Some(Ok(iter_try!(Object::from_vec(buf))));
+                }
+                ObjectIterSource::Dir { ref mut dir_iter } => {
+                    if let Some(dent_res) = dir_iter.next() {
+                        let dent = iter_try!(dent_res);
+                        let md = iter_try!(dent.metadata());
+                        if md.is_file() {
+                            return Some(Ok(iter_try!(Object::from_path(dent.path()))));
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+impl SdkProcessor {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<SdkProcessor> {
+        let p = path.as_ref().to_path_buf();
+        let sdk_info = SdkInfo::from_path(&p).ok_or_else(|| {
+            Error::from(ErrorKind::UnknownSdk)
+        })?;
+        Ok(SdkProcessor {
+            path: p,
+            info: sdk_info,
+        })
+    }
+
+    pub fn objects<'a>(&'a self) -> Result<ObjectsIter<'a>> {
+        Ok(ObjectsIter {
+            info: &self.info,
+            source: ObjectIterSource::from_path(&self.path)?,
         })
     }
 }
