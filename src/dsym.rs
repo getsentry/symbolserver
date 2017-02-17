@@ -216,8 +216,8 @@ impl Variant {
         self.name.as_ref().map(|x| x.as_str())
     }
 
-    pub fn uuid(&self) -> Option<&Uuid> {
-        self.uuid.as_ref()
+    pub fn uuid(&self) -> Option<Uuid> {
+        self.uuid
     }
 
     pub fn vmaddr(&self) -> u64 {
