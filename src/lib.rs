@@ -6,6 +6,7 @@ extern crate serde_json;
 #[macro_use] extern crate error_chain;
 extern crate zip;
 extern crate walkdir;
+extern crate uuid;
 extern crate regex;
 #[macro_use] extern crate lazy_static;
 extern crate mach_object;

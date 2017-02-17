@@ -3,8 +3,10 @@ use std::path::Path;
 use std::borrow::Cow;
 
 use memmap;
-use mach_object::{OFile, Symbol, Section, SymbolIter, SymbolReader,
-    get_arch_name_from_types, get_arch_from_flag, SEG_TEXT, SECT_TEXT};
+use uuid::Uuid;
+use mach_object::{OFile, Symbol, Section, SymbolIter, SymbolReader, DyLib,
+    LoadCommand, MachCommand, get_arch_name_from_types, get_arch_from_flag,
+    SEG_TEXT, SECT_TEXT, cpu_type_t, cpu_subtype_t};
 
 use super::{Result, Error, ErrorKind};
 
@@ -17,7 +19,7 @@ enum Backing<'a> {
 pub struct Object<'a> {
     backing: Backing<'a>,
     ofile: OFile,
-    archs: Vec<&'a str>,
+    variants: Vec<Variant>,
 }
 
 pub struct SymbolIterator<'a> {
@@ -27,6 +29,15 @@ pub struct SymbolIterator<'a> {
 pub struct Symbols<'a> {
     ofile: &'a OFile,
     cursor: Cursor<&'a [u8]>,
+}
+
+pub struct Variant {
+    cputype: cpu_type_t,
+    cpusubtype: cpu_subtype_t,
+    uuid: Option<Uuid>,
+    name: Option<String>,
+    vmaddr: u64,
+    vmsize: u64,
 }
 
 impl<'a> Symbols<'a> {
@@ -41,15 +52,14 @@ impl<'a> Iterator for SymbolIterator<'a> {
     type Item = (u64, &'a str);
 
     fn next(&mut self) -> Option<(u64, &'a str)> {
-        if let Some(iter) = self.iter.as_mut() {
-            while let Some(sym) = iter.next() {
-                if let Symbol::Defined { ref name, external, ref section, entry, .. } = sym {
-                    if !external && name.is_some() {
-                        if let &Some(ref section) = section {
-                            let Section { ref sectname, ref segname, .. } = **section;
-                            if segname == SEG_TEXT && sectname == SECT_TEXT {
-                                return Some((entry as u64, name.unwrap()));
-                            }
+        let iter = try_opt!(self.iter.as_mut());
+        while let Some(sym) = iter.next() {
+            if let Symbol::Defined { ref name, external, ref section, entry, .. } = sym {
+                if !external && name.is_some() {
+                    if let &Some(ref sect) = section {
+                        let Section { ref sectname, ref segname, .. } = **sect;
+                        if segname == SEG_TEXT && sectname == SECT_TEXT {
+                            return Some((entry as u64, name.unwrap()));
                         }
                     }
                 }
@@ -75,26 +85,60 @@ impl<'a> Backing<'a> {
     }
 }
 
+fn extract_variant<'a>(variants: &'a mut Vec<Variant>, file: &'a OFile) {
+    if let &OFile::MachFile { ref header, ref commands, .. } = file {
+        let mut variant_uuid = None;
+        let mut variant_name = None;
+        let mut variant_vmaddr = 0;
+        let mut variant_vmsize = 0;
+        for &MachCommand(ref load_cmd, _) in commands {
+            match load_cmd {
+                &LoadCommand::Uuid(uuid) => {
+                    variant_uuid = Some(uuid);
+                },
+                &LoadCommand::IdDyLib(DyLib { ref name, .. }) => {
+                    variant_name = Some(name.1.clone());
+                }
+                &LoadCommand::Segment { ref segname, vmaddr, vmsize, .. } => {
+                    if segname == "__TEXT" {
+                        variant_vmaddr = vmaddr as u64;
+                        variant_vmsize = vmsize as u64;
+                    }
+                }
+                &LoadCommand::Segment64 { ref segname, vmaddr, vmsize, .. } => {
+                    if segname == "__TEXT" {
+                        variant_vmaddr = vmaddr as u64;
+                        variant_vmsize = vmsize as u64;
+                    }
+                }
+                _ => {}
+            }
+        }
+        variants.push(Variant {
+            cputype: header.cputype,
+            cpusubtype: header.cpusubtype,
+            uuid: variant_uuid,
+            name: variant_name,
+            vmaddr: variant_vmaddr,
+            vmsize: variant_vmsize,
+        })
+    }
+}
+
 impl<'a> Object<'a> {
 
     fn from_backing(backing: Backing<'a>) -> Result<Object<'a>> {
         let ofile = OFile::parse(&mut backing.cursor(0))?;
-        let mut archs = vec![];
+        let mut variants = vec![];
 
         match ofile {
             OFile::FatFile { ref files, .. } => {
-                for &(ref arch, _) in files {
-                    if let Some(arch_str) = get_arch_name_from_types(
-                            arch.cputype, arch.cpusubtype) {
-                        archs.push(arch_str);
-                    }
+                for &(_, ref file) in files {
+                    extract_variant(&mut variants, file);
                 }
             }
-            OFile::MachFile { ref header, .. } => {
-                if let Some(arch_str) = get_arch_name_from_types(
-                        header.cputype, header.cpusubtype) {
-                    archs.push(arch_str);
-                }
+            OFile::MachFile { .. } => {
+                extract_variant(&mut variants, &ofile);
             }
             _ => {}
         }
@@ -102,7 +146,7 @@ impl<'a> Object<'a> {
         Ok(Object {
             backing: backing,
             ofile: ofile,
-            archs: archs,
+            variants: variants,
         })
     }
 
@@ -126,9 +170,9 @@ impl<'a> Object<'a> {
         Object::from_backing(Backing::Mmap(mmap))
     }
 
-    /// Returns a list of contained CPU architectures
-    pub fn architectures(&self) -> &[&str] {
-        &self.archs[..]
+    /// Return a slice of the variants
+    pub fn variants(&'a self) -> &'a [Variant] {
+        &self.variants[..]
     }
 
     /// Returns an iterator over the symbols of an architecture.
@@ -141,20 +185,18 @@ impl<'a> Object<'a> {
             OFile::FatFile { ref files, .. } => {
                 for &(ref arch, ref file) in files {
                     if arch.cputype == cputype && arch.cpusubtype == cpusubtype {
-                        let cursor = self.backing.cursor(arch.offset as usize);
                         return Ok(Symbols {
                             ofile: file,
-                            cursor: cursor,
+                            cursor: self.backing.cursor(arch.offset as usize),
                         });
                     }
                 }
             }
             OFile::MachFile { ref header, .. } => {
                 if header.cputype == cputype && header.cpusubtype == cpusubtype {
-                    let cursor = self.backing.cursor(0);
                     return Ok(Symbols {
                         ofile: &self.ofile,
-                        cursor: cursor,
+                        cursor: self.backing.cursor(0),
                     });
                 }
             }
@@ -165,13 +207,35 @@ impl<'a> Object<'a> {
     }
 }
 
+impl Variant {
+    pub fn arch(&self) -> &str {
+        get_arch_name_from_types(self.cputype, self.cpusubtype).unwrap_or("unknown")
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_ref().map(|x| x.as_str())
+    }
+
+    pub fn uuid(&self) -> Option<&Uuid> {
+        self.uuid.as_ref()
+    }
+
+    pub fn vmaddr(&self) -> u64 {
+        self.vmaddr
+    }
+
+    pub fn vmsize(&self) -> u64 {
+        self.vmsize
+    }
+}
+
 pub fn test() {
     let obj = Object::from_path("/Users/mitsuhiko/Library/Developer/Xcode/iOS DeviceSupport/10.2 (14C92)/Symbols/System/Library/CoreServices/Encodings/libKoreanConverter.dylib").unwrap();
 
-    for arch in obj.architectures() {
-        let mut syms = obj.symbols(arch).unwrap();
+    for variant in obj.variants() {
+        let mut syms = obj.symbols(variant.arch()).unwrap();
         for (addr, sym) in syms.iter() {
-            println!("{} | {} | {}", arch, addr, sym);
+            println!("{} | {} | {} | {}", variant.name().unwrap_or("?"), variant.arch(), addr, sym);
         }
     }
 }
