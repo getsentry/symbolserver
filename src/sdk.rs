@@ -49,10 +49,12 @@ pub struct SdkInfo {
     pub flavour: Option<String>,
 }
 
+/// Iterates over all objects in an SDK
 pub struct ObjectsIter {
     source: ObjectIterSource,
 }
 
+/// Helper struct to process an SDK from the FS or a ZIP
 pub struct SdkProcessor {
     path: PathBuf,
     info: SdkInfo,
@@ -189,6 +191,7 @@ impl<'a> Iterator for ObjectsIter {
 }
 
 impl SdkProcessor {
+    /// Constructs a processor from a file system path
     pub fn new<P: AsRef<Path>>(path: P) -> Result<SdkProcessor> {
         let p = path.as_ref().to_path_buf();
         let sdk_info = SdkInfo::from_path(&p).ok_or_else(|| {
@@ -200,10 +203,12 @@ impl SdkProcessor {
         })
     }
 
+    /// Returns the SDK info (derived from the path)
     pub fn info(&self) -> &SdkInfo {
         &self.info
     }
 
+    /// Returns an object iterator
     pub fn objects<'a>(&'a self) -> Result<ObjectsIter> {
         Ok(ObjectsIter {
             source: ObjectIterSource::from_path(&self.path)?,
