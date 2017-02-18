@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use zip;
 use walkdir;
-use memmap;
 use regex::Regex;
+use mach_object::Error as MachError;
 
 use super::{Result, Error, ErrorKind};
 use super::dsym::Object;
@@ -48,8 +48,7 @@ pub struct SdkInfo {
     pub flavour: Option<String>,
 }
 
-pub struct ObjectsIter<'a> {
-    info: &'a SdkInfo,
+pub struct ObjectsIter {
     source: ObjectIterSource,
 }
 
@@ -108,10 +107,28 @@ impl ObjectIterSource {
     }
 }
 
-impl<'a> Iterator for ObjectsIter<'a> {
-    type Item = Result<Object<'a>>;
+impl<'a> Iterator for ObjectsIter {
+    type Item = Result<Object<'static>>;
 
-    fn next(&mut self) -> Option<Result<Object<'a>>> {
+    fn next(&mut self) -> Option<Result<Object<'static>>> {
+        macro_rules! try_return_obj {
+            ($expr:expr) => {
+                match $expr {
+                    Ok(rv) => {
+                        return Some(Ok(rv));
+                    }
+                    Err(err) => {
+                        if let &ErrorKind::MachO(ref mach_err) = err.kind() {
+                            if let &MachError::LoadError(_) = mach_err {
+                                continue;
+                            }
+                        }
+                        return Some(Err(err.into()));
+                    }
+                }
+            }
+        }
+
         loop {
             match self.source {
                 ObjectIterSource::Zip { ref mut archive, ref mut idx } => {
@@ -122,14 +139,14 @@ impl<'a> Iterator for ObjectsIter<'a> {
                     *idx += 1;
                     let mut buf : Vec<u8> = vec![];
                     iter_try!(f.read_to_end(&mut buf));
-                    return Some(Ok(iter_try!(Object::from_vec(buf))));
+                    try_return_obj!(Object::from_vec(buf));
                 }
                 ObjectIterSource::Dir { ref mut dir_iter } => {
                     if let Some(dent_res) = dir_iter.next() {
                         let dent = iter_try!(dent_res);
                         let md = iter_try!(dent.metadata());
-                        if md.is_file() {
-                            return Some(Ok(iter_try!(Object::from_path(dent.path()))));
+                        if md.is_file() && md.len() > 0 {
+                            try_return_obj!(Object::from_path(dent.path()));
                         }
                     } else {
                         break;
@@ -153,9 +170,12 @@ impl SdkProcessor {
         })
     }
 
-    pub fn objects<'a>(&'a self) -> Result<ObjectsIter<'a>> {
+    pub fn info(&self) -> &SdkInfo {
+        &self.info
+    }
+
+    pub fn objects<'a>(&'a self) -> Result<ObjectsIter> {
         Ok(ObjectsIter {
-            info: &self.info,
             source: ObjectIterSource::from_path(&self.path)?,
         })
     }
