@@ -18,6 +18,7 @@ enum ObjectIterSource {
         idx: usize,
     },
     Dir {
+        base: PathBuf,
         dir_iter: walkdir::Iter,
     }
 }
@@ -101,21 +102,45 @@ impl ObjectIterSource {
             })
         } else {
             Ok(ObjectIterSource::Dir {
+                base: path.as_ref().join("Symbols"),
                 dir_iter: walkdir::WalkDir::new(path.as_ref()).into_iter(),
             })
         }
     }
 }
 
-impl<'a> Iterator for ObjectsIter {
-    type Item = Result<Object<'static>>;
+fn strip_archive_file_prefix(path: &str) -> &str {
+    let mut iter = path.splitn(2, '/');
 
-    fn next(&mut self) -> Option<Result<Object<'static>>> {
+    // Symbols/foo/bar -> foo/bar
+    if let Some("Symbols") = iter.next() {
+        if let Some(rest) = iter.next() {
+            return rest;
+        }
+    }
+
+    // Foo/Symbols/foo/bar -> foo/bar
+    let mut iter = path.splitn(3, '/');
+    if let Some(_) = iter.next() {
+        if let Some("Symbols") = iter.next() {
+            if let Some(rest) = iter.next() {
+                return rest;
+            }
+        }
+    }
+
+    path
+}
+
+impl<'a> Iterator for ObjectsIter {
+    type Item = Result<(String, Object<'static>)>;
+
+    fn next(&mut self) -> Option<Result<(String, Object<'static>)>> {
         macro_rules! try_return_obj {
-            ($expr:expr) => {
+            ($expr:expr, $name:expr) => {
                 match $expr {
                     Ok(rv) => {
-                        return Some(Ok(rv));
+                        return Some(Ok(($name.to_string(), rv)));
                     }
                     Err(err) => {
                         if let &ErrorKind::MachO(ref mach_err) = err.kind() {
@@ -138,15 +163,20 @@ impl<'a> Iterator for ObjectsIter {
                     let mut f = iter_try!(archive.by_index(*idx));
                     *idx += 1;
                     let mut buf : Vec<u8> = vec![];
-                    iter_try!(f.read_to_end(&mut buf));
-                    try_return_obj!(Object::from_vec(buf));
+                    if iter_try!(f.read_to_end(&mut buf)) > 0 {
+                        try_return_obj!(Object::from_vec(buf),
+                            strip_archive_file_prefix(f.name()));
+                    }
                 }
-                ObjectIterSource::Dir { ref mut dir_iter } => {
+                ObjectIterSource::Dir { ref base, ref mut dir_iter } => {
                     if let Some(dent_res) = dir_iter.next() {
                         let dent = iter_try!(dent_res);
                         let md = iter_try!(dent.metadata());
                         if md.is_file() && md.len() > 0 {
-                            try_return_obj!(Object::from_path(dent.path()));
+                            let rp = dent.path().strip_prefix(base).unwrap_or(dent.path());
+                            try_return_obj!(
+                                Object::from_path(dent.path()),
+                                rp.display());
                         }
                     } else {
                         break;
