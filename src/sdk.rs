@@ -32,7 +32,7 @@ fn get_sdk_name_from_folder(folder: &str) -> Option<&'static str> {
 }
 
 /// Information of the SDK
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SdkInfo {
     /// The name of the SDK (iOS, tvOS etc.)
     pub name: &'static str,
