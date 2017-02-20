@@ -53,6 +53,7 @@ struct StoredSlice {
 }
 
 #[repr(C, packed)]
+#[derive(Debug)]
 struct IndexItem {
     addr_low: u32,
     addr_high: u16,
@@ -64,6 +65,7 @@ pub struct MemDb<'a> {
     backing: Backing<'a>
 }
 
+#[derive(Debug)]
 pub struct Symbol<'a> {
     object_name: &'a str,
     symbol: &'a str,
@@ -208,6 +210,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
 
     pub fn flush(&mut self) -> Result<()> {
         let mut header = MemDbHeader { ..Default::default() };
+        header.version = 1;
 
         // start by writing out the index of the variants and record the slices.
         let mut slices = vec![];
@@ -240,7 +243,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         // now write out all the object name sources
         let slices = self.make_string_slices(&self.object_names[..])?;
         self.write_slices(&slices[..], &mut header.object_names_start,
-                          &mut header.tagged_object_names_count)?;
+                          &mut header.object_names_count)?;
 
         // now write out all the symbols
         let slices = self.make_string_slices(&self.symbols[..])?;
