@@ -8,10 +8,10 @@ GENERATOR=generate_compressor_model.py
 all: shoco
 
 shoco: shoco-bin.o $(OBJECTS) $(HEADERS)
-	$(CC) $(LDFLAGS) $(OBJECTS) -s $< -o $@
+	$(CC) $(LDFLAGS) $(OBJECTS) $< -o $@
 
 test_input: test_input.o $(OBJECTS) $(HEADERS)
-	$(CC) $(LDFLAGS) $(OBJECTS) -s $< -o $@
+	$(CC) $(LDFLAGS) $(OBJECTS) $< -o $@
 
 $(OBJECTS): %.o: %.c $(HEADERS)
 	$(CC) $(FLAGS) $< -c
