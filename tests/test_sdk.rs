@@ -39,7 +39,7 @@ fn test_sdk_info_parse_ios_patchlevel_ext() {
 
 #[test]
 fn test_sdk_info_parse_ios_patchlevel_ext_memdb() {
-    let info = SdkInfo::from_path(Path::new("/Users/mitsuhiko/Library/Developer/Xcode/iOS DeviceSupport/10.2.3 (14C93).memdb")).unwrap();
+    let info = SdkInfo::from_path(Path::new("iOS_10.2.3_14C93.memdb")).unwrap();
     assert_eq!(info.name(), "iOS");
     assert_eq!(info.version_major(), 10);
     assert_eq!(info.version_minor(), 2);

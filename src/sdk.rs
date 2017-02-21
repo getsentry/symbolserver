@@ -81,14 +81,33 @@ impl SdkInfo {
                     (\d+)\.(\d+)(?:\.(\d+))?
                     \s+
                     \(([a-zA-Z0-9]+)\)
-                    (?:\.zip|\.memdb)?
+                    (?:\.zip)?
+                $
+            ").unwrap();
+            static ref MEMDB_FILENAME_RE: Regex = Regex::new(r"(?x)
+                ^
+                    ([^-]+)_
+                    (\d+)\.(\d+)(?:\.(\d+))?_
+                    ([a-zA-Z0-9]+)
+                    (?:\.memdb)?
                 $
             ").unwrap();
         }
 
         let p = path.as_ref();
-        let folder = try_opt!(p.parent().and_then(|x| x.file_name()).and_then(|x| x.to_str()));
         let filename = try_opt!(p.file_name().and_then(|x| x.to_str()));
+        if let Some(caps) = MEMDB_FILENAME_RE.captures(filename) {
+            return Some(SdkInfo::new(
+                caps.get(1).unwrap().as_str(),
+                try_opt!(caps.get(2).unwrap().as_str().parse().ok()),
+                try_opt!(caps.get(3).unwrap().as_str().parse().ok()),
+                try_opt!(caps.get(4).map(|x| x.as_str()).unwrap_or("0").parse().ok()),
+                try_opt!(caps.get(5).map(|x| x.as_str())),
+                None,
+            ));
+        }
+
+        let folder = try_opt!(p.parent().and_then(|x| x.file_name()).and_then(|x| x.to_str()));
         let caps = try_opt!(SDK_FILENAME_RE.captures(filename));
         Some(SdkInfo::new(
             try_opt!(get_sdk_name_from_folder(folder)),
