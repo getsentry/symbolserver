@@ -40,7 +40,6 @@ pub struct SdkInfo {
     version_minor: u32,
     version_patchlevel: u32,
     build: String,
-    flavour: Option<String>,
 }
 
 /// Iterates over all objects in an SDK
@@ -58,7 +57,7 @@ impl SdkInfo {
 
     /// Manually construct an SDK info
     pub fn new(name: &str, version_major: u32, version_minor: u32,
-               version_patchlevel: u32, build: &str, flavour: Option<&str>)
+               version_patchlevel: u32, build: &str)
         -> SdkInfo
     {
         SdkInfo {
@@ -67,7 +66,6 @@ impl SdkInfo {
             version_minor: version_minor,
             version_patchlevel: version_patchlevel,
             build: build.to_string(),
-            flavour: flavour.map(|x| x.to_string()),
         }
     }
 
@@ -103,7 +101,6 @@ impl SdkInfo {
                 try_opt!(caps.get(3).unwrap().as_str().parse().ok()),
                 try_opt!(caps.get(4).map(|x| x.as_str()).unwrap_or("0").parse().ok()),
                 try_opt!(caps.get(5).map(|x| x.as_str())),
-                None,
             ));
         }
 
@@ -115,7 +112,6 @@ impl SdkInfo {
             try_opt!(caps.get(2).unwrap().as_str().parse().ok()),
             try_opt!(caps.get(3).map(|x| x.as_str()).unwrap_or("0").parse().ok()),
             try_opt!(caps.get(4).map(|x| x.as_str())),
-            None,
         ))
     }
 
@@ -142,11 +138,6 @@ impl SdkInfo {
     /// The build of the SDK
     pub fn build(&self) -> &str {
         &self.build
-    }
-
-    /// The optional flavour of the SDK
-    pub fn flavour(&self) -> Option<&str> {
-        self.flavour.as_ref().map(|x| &**x)
     }
 }
 

@@ -30,7 +30,6 @@ pub struct PackedSdkInfo {
     pub version_minor: u16,
     pub version_patchlevel: u16,
     pub build: [u8; 10],
-    pub flavour: [u8; 16],
 }
 
 #[repr(C, packed)]
@@ -71,19 +70,15 @@ impl PackedSdkInfo {
         self.version_patchlevel = info.version_patchlevel() as u16;
         copy_str_to_slice(&mut self.name[..], info.name());
         copy_str_to_slice(&mut self.build[..], info.build());
-        copy_str_to_slice(&mut self.build[..],
-            info.flavour().as_ref().unwrap_or(&""));
     }
 
     pub fn to_sdk_info(&self) -> SdkInfo {
-        let flavour = str_from_zero_slice(&self.flavour[..]);
         SdkInfo::new(
             str_from_zero_slice(&self.name[..]),
             self.version_major as u32,
             self.version_minor as u32,
             self.version_patchlevel as u32,
             str_from_zero_slice(&self.build[..]),
-            if flavour.len() == 0 { None } else { Some(flavour) },
         )
     }
 }
