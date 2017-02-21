@@ -2,6 +2,10 @@
 name = "symbolserver"
 version = "0.1.0"
 authors = ["Sentry <daniel.griesser.86@gmail.com>"]
+build = "build.rs"
+
+[build-dependencies]
+gcc = "0.3"
 
 [dependencies]
 serde = "^0.9"
