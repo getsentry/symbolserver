@@ -3,22 +3,17 @@
 //! A support folder with SDK debug symbols can be processed into a
 //! in-memory database format which is a flat file on the file system
 //! that gets mmaped into the process.
-use std::io::{Write, Seek, SeekFrom};
 use std::str::from_utf8;
 use std::mem;
 use std::slice;
-use std::cell::RefCell;
 use std::path::Path;
 use std::borrow::Cow;
-use std::collections::HashMap;
 
 use uuid::Uuid;
 use memmap::{Mmap, Protection};
 
 use super::{Result, ErrorKind};
-use super::sdk::SdkInfo;
-use super::dsym::{Object, Variant};
-use super::shoco::{compress, decompress};
+use super::shoco::decompress;
 use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
 use super::utils::binsearch_by_key;
 

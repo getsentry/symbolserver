@@ -2,7 +2,6 @@ extern crate symbolserver;
 extern crate uuid;
 
 use symbolserver::dsym::Object;
-use uuid::Uuid;
 
 const DEMO_DYLIB: &'static [u8] = include_bytes!("res/libKoreanConverter.dylib");
 

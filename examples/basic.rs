@@ -21,7 +21,7 @@ fn do_main() -> Result<()> {
         let mut symout = fs::File::create("/tmp/symbols")?;
 
         for obj_res in sdk.objects()? {
-            let (filename, obj) = obj_res?;
+            let (_, obj) = obj_res?;
             for var in obj.variants() {
                 let mut symbols = obj.symbols(var.arch())?;
                 for (_, sym) in symbols.iter() {
