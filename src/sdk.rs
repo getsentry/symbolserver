@@ -1,5 +1,6 @@
 //! Provides SDK Information
 use std::fs;
+use std::fmt;
 use std::io::{Read, Write, Seek};
 use std::path::{Path, PathBuf};
 
@@ -51,6 +52,19 @@ pub struct ObjectsIter {
 pub struct Sdk {
     path: PathBuf,
     info: SdkInfo,
+}
+
+pub struct Version(u32, u32, u32);
+
+impl<'a> fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let Version(a, b, c) = *self;
+        if c == 0 {
+            write!(f, "{}.{}", a, b)
+        } else {
+            write!(f, "{}.{}.{}", a, b, c)
+        }
+    }
 }
 
 impl SdkInfo {
@@ -133,6 +147,11 @@ impl SdkInfo {
     /// The patchlevel version of the SDK
     pub fn version_patchlevel(&self) -> u32 {
         self.version_patchlevel
+    }
+
+    /// The version as formattable thing
+    pub fn version(&self) -> Version {
+        Version(self.version_major, self.version_minor, self.version_patchlevel)
     }
 
     /// The build of the SDK
@@ -275,5 +294,21 @@ impl Sdk {
         }
         builder.flush()?;
         Ok(())
+    }
+
+    /// Writes a memdb file into the given folder with the default filename.
+    pub fn dump_memdb_to_folder<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let mut f = fs::File::create(path.as_ref().join(self.memdb_filename()))?;
+        self.dump_memdb(&mut f)
+    }
+
+    /// Returns the intended memdb filename
+    pub fn memdb_filename(&self) -> String {
+        format!("{}_{}.{}.{}_{}.memdb",
+                self.info.name,
+                self.info.version_major,
+                self.info.version_minor,
+                self.info.version_patchlevel,
+                self.info.build)
     }
 }
