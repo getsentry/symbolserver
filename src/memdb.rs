@@ -13,6 +13,7 @@ use memmap::{Mmap, Protection};
 use super::{Result, ErrorKind};
 use super::sdk::SdkInfo;
 use super::dsym::{Object, Variant};
+use super::shoco::{compress, decompress};
 
 
 // stored information:
@@ -49,7 +50,7 @@ struct MemDbHeader {
 #[repr(C, packed)]
 struct StoredSlice {
     pub offset: u32,
-    pub length: u32,
+    pub len: u32,
 }
 
 #[repr(C, packed)]
@@ -67,8 +68,8 @@ pub struct MemDb<'a> {
 
 #[derive(Debug)]
 pub struct Symbol<'a> {
-    object_name: &'a str,
-    symbol: &'a str,
+    object_name: Cow<'a, str>,
+    symbol: Cow<'a, str>,
     addr: u64,
 }
 
@@ -82,6 +83,31 @@ pub struct MemDbBuilder<W> {
     object_uuid_mapping: Vec<String>,
     variant_uuids: Vec<Uuid>,
     variants: Vec<Vec<IndexItem>>,
+}
+
+impl StoredSlice {
+
+    pub fn new(offset: usize, mut len: usize, is_compressed: bool) -> StoredSlice {
+        if is_compressed {
+            len |= 0x80000000;
+        }
+        StoredSlice {
+            offset: offset as u32,
+            len: len as u32,
+        }
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset as usize
+    }
+
+    pub fn len(&self) -> usize {
+        (self.len as usize) & 0x7fffffff
+    }
+
+    pub fn is_compressed(&self) -> bool {
+        self.len >> 31 != 0
+    }
 }
 
 impl IndexItem {
@@ -190,11 +216,13 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         let mut slices = vec![];
         for string in strings {
             let offset = self.tell()?;
-            let len = self.write_bytes(string.as_bytes())?;
-            slices.push(StoredSlice {
-                offset: offset as u32,
-                length: len as u32
-            });
+            let compressed = compress(string.as_bytes());
+            let (len, is_compressed) = if compressed.len() < string.as_bytes().len() {
+                (self.write_bytes(compressed.as_slice())?, true)
+            } else {
+                (self.write_bytes(string.as_bytes())?, false)
+            };
+            slices.push(StoredSlice::new(offset, len, is_compressed));
         }
         Ok(slices)
     }
@@ -219,10 +247,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             for index_item in variant {
                 self.write(index_item)?;
             }
-            slices.push(StoredSlice {
-                offset: offset as u32,
-                length: (self.tell()? - offset) as u32
-            });
+            slices.push(StoredSlice::new(offset, (self.tell()? - offset), false));
         }
         self.write_slices(&slices[..], &mut header.variants_start,
                           &mut header.variants_count)?;
@@ -344,9 +369,9 @@ impl<'a> MemDb<'a> {
             if item_uuid == uuid {
                 let variant_slice = &self.variants()?[idx];
                 unsafe {
-                    let data = self.get_data(variant_slice.offset as usize,
-                                             variant_slice.length as usize)?;
-                    let count = variant_slice.length as usize / mem::size_of::<IndexItem>();
+                    let data = self.get_data(variant_slice.offset(),
+                                             variant_slice.len())?;
+                    let count = variant_slice.len() / mem::size_of::<IndexItem>();
                     return Ok(Some(slice::from_raw_parts(
                         mem::transmute(data.as_ptr()),
                         count
@@ -370,9 +395,14 @@ impl<'a> MemDb<'a> {
     }
 
     #[inline(always)]
-    fn get_string(&self, slice: &StoredSlice) -> Result<&str> {
-        let bytes = self.get_data(slice.offset as usize, slice.length as usize)?;
-        Ok(from_utf8(bytes)?)
+    fn get_string(&'a self, slice: &StoredSlice) -> Result<Cow<'a, str>> {
+        let bytes = self.get_data(slice.offset(), slice.len())?;
+        if slice.is_compressed() {
+            let decompressed = decompress(bytes);
+            Ok(Cow::Owned(String::from_utf8(decompressed)?))
+        } else {
+            Ok(Cow::Borrowed(from_utf8(bytes)?))
+        }
     }
 
     pub fn lookup_by_uuid(&'a self, uuid: &Uuid, addr: u64)
@@ -412,11 +442,11 @@ impl<'a> MemDb<'a> {
     }
     */
 
-    fn get_object_name(&'a self, src_id: u16) -> Result<&'a str> {
+    fn get_object_name(&'a self, src_id: u16) -> Result<Cow<'a, str>> {
         self.get_string(&self.object_names()?[src_id as usize])
     }
 
-    fn get_symbol(&'a self, sym_id: u32) -> Result<&'a str> {
+    fn get_symbol(&'a self, sym_id: u32) -> Result<Cow<'a, str>> {
         self.get_string(&self.symbols()?[sym_id as usize])
     }
 

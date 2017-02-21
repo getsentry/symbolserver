@@ -1,5 +1,6 @@
 use std::io;
 use std::str::Utf8Error;
+use std::string::FromUtf8Error;
 
 use mach_object;
 use zip;
@@ -33,5 +34,6 @@ error_chain! {
         MachO(mach_object::Error);
         Zip(zip::result::ZipError);
         Utf8Error(Utf8Error);
+        FromUtf8Error(FromUtf8Error);
     }
 }
