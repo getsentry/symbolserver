@@ -33,7 +33,7 @@ fn get_sdk_name_from_folder(folder: &str) -> Option<&'static str> {
 }
 
 /// Information of the SDK
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SdkInfo {
     name: String,
     version_major: u32,
