@@ -310,7 +310,7 @@ def main():
 
     successors_reversed = collections.OrderedDict()
     for char, successor_list in successors.items():
-        successors_reversed[char] = [None] * chars_count
+        successors_reversed[char] = [-1] * chars_count
         s_indices = collections.OrderedDict(zip(successor_list, range(chars_count)))
         for i, s in enumerate(successors.keys()):
             successors_reversed[char][i] = s_indices.get(s, -1)
