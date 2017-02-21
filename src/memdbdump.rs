@@ -154,6 +154,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
     pub fn flush(&mut self) -> Result<()> {
         let mut header = MemDbHeader { ..Default::default() };
         header.version = 1;
+        header.sdk_info.set_from_sdk_info(&self.info);
 
         // start by writing out the index of the variants and record the slices.
         let mut slices = vec![];

@@ -1,9 +1,15 @@
+use std::str::from_utf8;
+
 use uuid::Uuid;
+
+use super::sdk::SdkInfo;
+
 
 #[repr(C, packed)]
 #[derive(Default, Copy, Clone)]
 pub struct MemDbHeader {
     pub version: u32,
+    pub sdk_info: PackedSdkInfo,
     pub variants_start: u32,
     pub variants_count: u32,
     pub uuids_start: u32,
@@ -14,6 +20,17 @@ pub struct MemDbHeader {
     pub object_names_count: u32,
     pub symbols_start: u32,
     pub symbols_count: u32,
+}
+
+#[repr(C, packed)]
+#[derive(Default, Copy, Clone)]
+pub struct PackedSdkInfo {
+    pub name: [u8; 8],
+    pub version_major: u16,
+    pub version_minor: u16,
+    pub version_patchlevel: u16,
+    pub build: [u8; 10],
+    pub flavour: [u8; 16],
 }
 
 #[repr(C, packed)]
@@ -35,6 +52,35 @@ pub struct IndexItem {
     addr_high: u16,
     src_id: u16,
     sym_id: u32,
+}
+
+fn str_from_zero_slice(slice: &[u8]) -> &str {
+    from_utf8(slice).unwrap().trim_right_matches('\x00')
+}
+
+impl PackedSdkInfo {
+
+    pub fn set_from_sdk_info(&mut self, info: &SdkInfo) {
+        self.version_major = info.version_major() as u16;
+        self.version_minor = info.version_minor() as u16;
+        self.version_patchlevel = info.version_patchlevel() as u16;
+        (&mut self.name[..]).copy_from_slice(info.name().as_bytes());
+        (&mut self.build[..]).copy_from_slice(info.build().as_bytes());
+        (&mut self.flavour[..]).copy_from_slice(
+            info.flavour().as_ref().map(|x| x.as_bytes()).unwrap_or(b""));
+    }
+
+    pub fn to_sdk_info(&self) -> SdkInfo {
+        let flavour = str_from_zero_slice(&self.flavour[..]);
+        SdkInfo::new(
+            str_from_zero_slice(&self.name[..]),
+            self.version_major as u32,
+            self.version_minor as u32,
+            self.version_patchlevel as u32,
+            str_from_zero_slice(&self.build[..]),
+            if flavour.len() == 0 { None } else { Some(flavour) },
+        )
+    }
 }
 
 impl IndexedUuid {
