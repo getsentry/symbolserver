@@ -235,16 +235,6 @@ impl<'a> MemDb<'a> {
         }
     }
 
-    /*
-    pub fn lookup_by_object_name<'a>(&'a self, object_name: &str, arch: &str, addr: u64)
-        -> Option<Symbol<'a>>
-    {
-        self.find_uuid(object_name, arch).and_then(|uuid| {
-            self.lookup_by_uuid(uuid, addr)
-        })
-    }
-    */
-
     fn get_object_name(&'a self, src_id: usize) -> Result<Cow<'a, str>> {
         self.get_string(&self.object_names()?[src_id])
     }
