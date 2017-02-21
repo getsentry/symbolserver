@@ -17,7 +17,10 @@ pub use errors::{Result, Error, ErrorKind};
 
 mod macros;
 mod errors;
-pub mod shoco;
 pub mod dsym;
 pub mod sdk;
 pub mod memdb;
+
+// public for the tests but hidden away
+#[doc(hidden)]
+pub mod shoco;

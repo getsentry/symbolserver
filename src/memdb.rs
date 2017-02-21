@@ -1,3 +1,8 @@
+//! This module implements the in-memory database
+//!
+//! A support folder with SDK debug symbols can be processed into a
+//! in-memory database format which is a flat file on the file system
+//! that gets mmaped into the process.
 use std::io::{Write, Seek, SeekFrom};
 use std::str::from_utf8;
 use std::mem;
@@ -62,10 +67,12 @@ struct IndexItem {
     sym_id: u32,
 }
 
+/// Provides access to a memdb file
 pub struct MemDb<'a> {
     backing: Backing<'a>
 }
 
+/// Represents a symbol from a memdb file.
 #[derive(Debug)]
 pub struct Symbol<'a> {
     object_name: Cow<'a, str>,
@@ -83,6 +90,24 @@ pub struct MemDbBuilder<W> {
     object_uuid_mapping: Vec<String>,
     variant_uuids: Vec<Uuid>,
     variants: Vec<Vec<IndexItem>>,
+}
+
+impl<'a> Symbol<'a> {
+
+    /// The object name a string
+    pub fn object_name(&self) -> &str {
+        return &self.object_name
+    }
+
+    /// The symbol as string
+    pub fn symbol(&self) -> &str {
+        return &self.symbol
+    }
+
+    /// The symbol address as u64
+    pub fn addr(&self) -> u64 {
+        self.addr
+    }
 }
 
 impl StoredSlice {
@@ -294,20 +319,24 @@ fn verify_version<'a>(rv: MemDb<'a>) -> Result<MemDb<'a>> {
 
 impl<'a> MemDb<'a> {
 
+    /// Constructs a memdb object from a byte slice cow.
     pub fn from_cow(cow: Cow<'a, [u8]>) -> Result<MemDb<'a>> {
         verify_version(MemDb {
             backing: Backing::Buf(cow),
         })
     }
 
+    /// Constructs a memdb object from a byte slice.
     pub fn from_slice(buffer: &'a [u8]) -> Result<MemDb<'a>> {
         MemDb::from_cow(Cow::Borrowed(buffer))
     }
 
+    /// Constructs a memdb object from a byte vector.
     pub fn from_vec(buffer: Vec<u8>) -> Result<MemDb<'a>> {
         MemDb::from_cow(Cow::Owned(buffer))
     }
 
+    /// Constructs a memdb object by mmapping a file from the filesystem in.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<MemDb<'a>> {
         let mmap = Mmap::open_path(path, Protection::Read)?;
         verify_version(MemDb {
@@ -315,8 +344,36 @@ impl<'a> MemDb<'a> {
         })
     }
 
+    /// Finds a symbol by UUID and address.
+    pub fn lookup_by_uuid(&'a self, uuid: &Uuid, addr: u64)
+        -> Result<Option<Symbol<'a>>>
+    {
+        let index = match self.get_index(uuid)? {
+            Some(idx) => idx,
+            None => { return Ok(None); }
+        };
+        let mut low = 0;
+        let mut high = index.len();
+
+        while low < high {
+            let mid = (low + high) / 2;
+            let ii = &index[mid as usize];
+            if addr < ii.addr() {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        if low > 0 && low <= index.len() {
+            Ok(Some(self.index_item_to_symbol(&index[low - 1])?))
+        } else {
+            Ok(None)
+        }
+    }
+
     #[inline(always)]
-    pub fn buffer(&self) -> &[u8] {
+    fn buffer(&self) -> &[u8] {
         match self.backing {
             Backing::Buf(ref buf) => buf,
             Backing::Mmap(ref mmap) => unsafe { mmap.as_slice() }
@@ -402,33 +459,6 @@ impl<'a> MemDb<'a> {
             Ok(Cow::Owned(String::from_utf8(decompressed)?))
         } else {
             Ok(Cow::Borrowed(from_utf8(bytes)?))
-        }
-    }
-
-    pub fn lookup_by_uuid(&'a self, uuid: &Uuid, addr: u64)
-        -> Result<Option<Symbol<'a>>>
-    {
-        let index = match self.get_index(uuid)? {
-            Some(idx) => idx,
-            None => { return Ok(None); }
-        };
-        let mut low = 0;
-        let mut high = index.len();
-
-        while low < high {
-            let mid = (low + high) / 2;
-            let ii = &index[mid as usize];
-            if addr < ii.addr() {
-                high = mid;
-            } else {
-                low = mid + 1;
-            }
-        }
-
-        if low > 0 && low <= index.len() {
-            Ok(Some(self.index_item_to_symbol(&index[low - 1])?))
-        } else {
-            Ok(None)
         }
     }
 
