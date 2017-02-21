@@ -19,52 +19,12 @@ use super::{Result, ErrorKind};
 use super::sdk::SdkInfo;
 use super::dsym::{Object, Variant};
 use super::shoco::{compress, decompress};
+use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader};
 
-
-// stored information:
-//
-//      object name + arch -> uuid
-//      uuid -> stored variant
-//      stored variant + addr -> symbol
-//      symbol -> [object name id, symbol name id, symbol addr]
-//      object name id -> object name
-//      symbol name id -> symbol name
-//
 
 enum Backing<'a> {
     Buf(Cow<'a, [u8]>),
     Mmap(Mmap),
-}
-
-#[repr(C, packed)]
-#[derive(Default, Copy, Clone)]
-struct MemDbHeader {
-    pub version: u32,
-    pub variants_start: u32,
-    pub variants_count: u32,
-    pub uuids_start: u32,
-    pub uuids_count: u32,
-    pub tagged_object_names_start: u32,
-    pub tagged_object_names_count: u32,
-    pub object_names_start: u32,
-    pub object_names_count: u32,
-    pub symbols_start: u32,
-    pub symbols_count: u32,
-}
-
-#[repr(C, packed)]
-struct StoredSlice {
-    pub offset: u32,
-    pub len: u32,
-}
-
-#[repr(C, packed)]
-#[derive(Debug)]
-struct IndexItem {
-    addr_low: u32,
-    addr_high: u16,
-    src_id: u16,
-    sym_id: u32,
 }
 
 /// Provides access to a memdb file
@@ -78,18 +38,6 @@ pub struct Symbol<'a> {
     object_name: Cow<'a, str>,
     symbol: Cow<'a, str>,
     addr: u64,
-}
-
-pub struct MemDbBuilder<W> {
-    writer: RefCell<W>,
-    info: SdkInfo,
-    symbols: Vec<String>,
-    symbols_map: HashMap<String, u32>,
-    object_names: Vec<String>,
-    object_names_map: HashMap<String, u16>,
-    object_uuid_mapping: Vec<String>,
-    variant_uuids: Vec<Uuid>,
-    variants: Vec<Vec<IndexItem>>,
 }
 
 impl<'a> Symbol<'a> {
@@ -109,205 +57,6 @@ impl<'a> Symbol<'a> {
         self.addr
     }
 }
-
-impl StoredSlice {
-
-    pub fn new(offset: usize, mut len: usize, is_compressed: bool) -> StoredSlice {
-        if is_compressed {
-            len |= 0x80000000;
-        }
-        StoredSlice {
-            offset: offset as u32,
-            len: len as u32,
-        }
-    }
-
-    pub fn offset(&self) -> usize {
-        self.offset as usize
-    }
-
-    pub fn len(&self) -> usize {
-        (self.len as usize) & 0x7fffffff
-    }
-
-    pub fn is_compressed(&self) -> bool {
-        self.len >> 31 != 0
-    }
-}
-
-impl IndexItem {
-    pub fn addr(&self) -> u64 {
-        ((self.addr_high as u64) << 32) | (self.addr_low as u64)
-    }
-}
-
-impl<W: Write + Seek> MemDbBuilder<W> {
-
-    pub fn new(writer: W, info: &SdkInfo) -> Result<MemDbBuilder<W>> {
-        let rv = MemDbBuilder {
-            writer: RefCell::new(writer),
-            info: info.clone(),
-            symbols: vec![],
-            symbols_map: HashMap::new(),
-            object_names: vec![],
-            object_names_map: HashMap::new(),
-            object_uuid_mapping: vec![],
-            variant_uuids: vec![],
-            variants: vec![],
-        };
-        let header = MemDbHeader { ..Default::default() };
-        rv.write(&header)?;
-        Ok(rv)
-    }
-
-    fn write_bytes(&self, x: &[u8]) -> Result<usize> {
-        self.writer.borrow_mut().write_all(x)?;
-        Ok(x.len())
-    }
-
-    fn write<T>(&self, x: &T) -> Result<usize> {
-        unsafe {
-            let bytes : *const u8 = mem::transmute(x);
-            let size = mem::size_of_val(x);
-            self.writer.borrow_mut().write_all(slice::from_raw_parts(bytes, size))?;
-            Ok(size)
-        }
-    }
-
-    fn seek(&self, new_pos: usize) -> Result<()> {
-        self.writer.borrow_mut().seek(SeekFrom::Start(new_pos as u64))?;
-        Ok(())
-    }
-
-    fn tell(&self) -> Result<usize> {
-        Ok(self.writer.borrow_mut().seek(SeekFrom::Current(0))? as usize)
-    }
-
-    fn add_symbol(&mut self, sym: &str) -> u32 {
-        if let Some(&sym_id) = self.symbols_map.get(sym) {
-            return sym_id;
-        }
-        let symbol_count = self.symbols.len() as u32;
-        self.symbols.push(sym.to_string());
-        self.symbols_map.insert(sym.to_string(), symbol_count);
-        symbol_count
-    }
-
-    fn add_object_name(&mut self, src: &str) -> u16 {
-        if let Some(&src_id) = self.object_names_map.get(src) {
-            return src_id;
-        }
-        let object_count = self.object_names.len() as u16;
-        self.object_names.push(src.to_string());
-        self.object_names_map.insert(src.to_string(), object_count);
-        object_count
-    }
-
-    pub fn write_object(&mut self, obj: &Object, filename: Option<&str>) -> Result<()> {
-        for variant in obj.variants() {
-            self.write_object_variant(&obj, &variant, filename)?;
-        }
-        Ok(())
-    }
-
-    pub fn write_object_variant(&mut self, obj: &Object, var: &Variant,
-                                filename: Option<&str>) -> Result<()> {
-        let mut symbols = obj.symbols(var.arch())?;
-        let src = var.name().or(filename).unwrap();
-        let src_id = self.add_object_name(src);
-
-        // build symbol index
-        let mut index = vec![];
-        for (addr, sym) in symbols.iter() {
-            let sym_id = self.add_symbol(sym);
-            index.push(IndexItem {
-                addr_low: (addr & 0xffffffff) as u32,
-                addr_high: ((addr >> 32) &0xffff) as u16,
-                src_id: src_id,
-                sym_id: sym_id,
-            });
-        }
-        index.sort_by_key(|item| item.addr());
-
-        // register variant and uuid as well as object name and arch
-        self.variant_uuids.push(var.uuid().unwrap());
-        self.variants.push(index);
-        self.object_uuid_mapping.push(format!("{}:{}", src, var.arch()));
-
-        Ok(())
-    }
-
-    fn make_string_slices(&self, strings: &[String]) -> Result<Vec<StoredSlice>> {
-        let mut slices = vec![];
-        for string in strings {
-            let offset = self.tell()?;
-            let compressed = compress(string.as_bytes());
-            let (len, is_compressed) = if compressed.len() < string.as_bytes().len() {
-                (self.write_bytes(compressed.as_slice())?, true)
-            } else {
-                (self.write_bytes(string.as_bytes())?, false)
-            };
-            slices.push(StoredSlice::new(offset, len, is_compressed));
-        }
-        Ok(slices)
-    }
-
-    fn write_slices(&self, slices: &[StoredSlice], start: &mut u32, len: &mut u32) -> Result<()> {
-        *start = self.tell()? as u32;
-        for item in slices.iter() {
-            self.write(item)?;
-        }
-        *len = slices.len() as u32;
-        Ok(())
-    }
-
-    pub fn flush(&mut self) -> Result<()> {
-        let mut header = MemDbHeader { ..Default::default() };
-        header.version = 1;
-
-        // start by writing out the index of the variants and record the slices.
-        let mut slices = vec![];
-        for variant in self.variants.iter() {
-            let offset = self.tell()?;
-            for index_item in variant {
-                self.write(index_item)?;
-            }
-            slices.push(StoredSlice::new(offset, (self.tell()? - offset), false));
-        }
-        self.write_slices(&slices[..], &mut header.variants_start,
-                          &mut header.variants_count)?;
-
-        // next write out the UUIDs.  Since these are fixed length we do not
-        // need to use slices here.
-        header.uuids_start = self.tell()? as u32;
-        header.uuids_count = self.variant_uuids.len() as u32;
-        for uuid in self.variant_uuids.iter() {
-            self.write_bytes(uuid.as_bytes())?;
-        }
-
-        // next we write out the name + arch -> uuid index mapping
-        let slices = self.make_string_slices(&self.object_uuid_mapping[..])?;
-        self.write_slices(&slices[..], &mut header.tagged_object_names_start,
-                          &mut header.tagged_object_names_count)?;
-
-        // now write out all the object name sources
-        let slices = self.make_string_slices(&self.object_names[..])?;
-        self.write_slices(&slices[..], &mut header.object_names_start,
-                          &mut header.object_names_count)?;
-
-        // now write out all the symbols
-        let slices = self.make_string_slices(&self.symbols[..])?;
-        self.write_slices(&slices[..], &mut header.symbols_start,
-                          &mut header.symbols_count)?;
-
-        // write the updated header
-        self.seek(0)?;
-        self.write(&header)?;
-
-        Ok(())
-    }
-}
-
 
 fn verify_version<'a>(rv: MemDb<'a>) -> Result<MemDb<'a>> {
     if rv.header()?.version != 1 {
@@ -472,18 +221,18 @@ impl<'a> MemDb<'a> {
     }
     */
 
-    fn get_object_name(&'a self, src_id: u16) -> Result<Cow<'a, str>> {
-        self.get_string(&self.object_names()?[src_id as usize])
+    fn get_object_name(&'a self, src_id: usize) -> Result<Cow<'a, str>> {
+        self.get_string(&self.object_names()?[src_id])
     }
 
-    fn get_symbol(&'a self, sym_id: u32) -> Result<Cow<'a, str>> {
-        self.get_string(&self.symbols()?[sym_id as usize])
+    fn get_symbol(&'a self, sym_id: usize) -> Result<Cow<'a, str>> {
+        self.get_string(&self.symbols()?[sym_id])
     }
 
     fn index_item_to_symbol(&'a self, ii: &IndexItem) -> Result<Symbol<'a>> {
         Ok(Symbol {
-            object_name: self.get_object_name(ii.src_id)?,
-            symbol: self.get_symbol(ii.sym_id)?,
+            object_name: self.get_object_name(ii.src_id())?,
+            symbol: self.get_symbol(ii.sym_id())?,
             addr: ii.addr(),
         })
     }

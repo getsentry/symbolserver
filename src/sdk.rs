@@ -1,6 +1,6 @@
 //! Provides SDK Information
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write, Seek};
 use std::path::{Path, PathBuf};
 
 use zip;
@@ -10,6 +10,7 @@ use mach_object::Error as MachError;
 
 use super::{Result, Error, ErrorKind};
 use super::dsym::Object;
+use super::memdbdump::MemDbBuilder;
 
 
 enum ObjectIterSource {
@@ -55,7 +56,7 @@ pub struct ObjectsIter {
 }
 
 /// Helper struct to process an SDK from the FS or a ZIP
-pub struct SdkProcessor {
+pub struct Sdk {
     path: PathBuf,
     info: SdkInfo,
 }
@@ -190,14 +191,14 @@ impl<'a> Iterator for ObjectsIter {
     }
 }
 
-impl SdkProcessor {
+impl Sdk {
     /// Constructs a processor from a file system path
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<SdkProcessor> {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Sdk> {
         let p = path.as_ref().to_path_buf();
         let sdk_info = SdkInfo::from_path(&p).ok_or_else(|| {
             Error::from(ErrorKind::UnknownSdk)
         })?;
-        Ok(SdkProcessor {
+        Ok(Sdk {
             path: p,
             info: sdk_info,
         })
@@ -213,5 +214,18 @@ impl SdkProcessor {
         Ok(ObjectsIter {
             source: ObjectIterSource::from_path(&self.path)?,
         })
+    }
+
+    /// Writes a memdb file for the SDK
+    ///
+    /// This can then be later read with the `MemDb` type.
+    pub fn dump_memdb<W: Write + Seek>(&self, writer: W) -> Result<()> {
+        let mut builder = MemDbBuilder::new(writer, self.info())?;
+        for obj_res in self.objects()? {
+            let (filename, obj) = obj_res?;
+            builder.write_object(&obj, Some(&filename))?;
+        }
+        builder.flush()?;
+        Ok(())
     }
 }

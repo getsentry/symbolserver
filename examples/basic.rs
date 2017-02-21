@@ -8,7 +8,7 @@ use std::io::Write;
 
 use uuid::Uuid;
 
-use symbolserver::sdk::SdkProcessor;
+use symbolserver::sdk::Sdk;
 use symbolserver::memdb::{MemDbBuilder, MemDb};
 use symbolserver::Result;
 
@@ -17,11 +17,10 @@ fn do_main() -> Result<()> {
     if args.len() > 1 {
         let p = Path::new(&args[1]);
         let out = fs::File::create("/tmp/test.memdb")?;
-        let sdk_proc = SdkProcessor::new(p)?;
+        let sdk = Sdk::new(p)?;
         let mut symout = fs::File::create("/tmp/symbols")?;
-        let mut builder = MemDbBuilder::new(out, sdk_proc.info())?;
 
-        for obj_res in sdk_proc.objects()? {
+        for obj_res in sdk.objects()? {
             let (filename, obj) = obj_res?;
             for var in obj.variants() {
                 let mut symbols = obj.symbols(var.arch())?;
@@ -30,9 +29,8 @@ fn do_main() -> Result<()> {
                     symout.write_all(b"\n")?;
                 }
             }
-            builder.write_object(&obj, Some(&filename))?;
         }
-        builder.flush()?;
+        sdk.dump_memdb(out)?;
     }
 
     let mdb = MemDb::from_path("/tmp/test.memdb")?;

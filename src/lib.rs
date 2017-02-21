@@ -17,6 +17,8 @@ pub use errors::{Result, Error, ErrorKind};
 
 mod macros;
 mod errors;
+mod memdbdump;
+mod memdbtypes;
 pub mod dsym;
 pub mod sdk;
 pub mod memdb;
