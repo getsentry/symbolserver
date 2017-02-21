@@ -26,3 +26,4 @@ pub mod memdb;
 // public for the tests but hidden away
 #[doc(hidden)]
 pub mod shoco;
+mod utils;

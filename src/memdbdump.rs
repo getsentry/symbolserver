@@ -19,7 +19,7 @@ use super::{Result, ErrorKind};
 use super::sdk::SdkInfo;
 use super::dsym::{Object, Variant};
 use super::shoco::{compress, decompress};
-use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader};
+use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
 
 
 // stored information:
@@ -40,7 +40,7 @@ pub struct MemDbBuilder<W> {
     object_names: Vec<String>,
     object_names_map: HashMap<String, u16>,
     object_uuid_mapping: Vec<String>,
-    variant_uuids: Vec<Uuid>,
+    variant_uuids: Vec<IndexedUuid>,
     variants: Vec<Vec<IndexItem>>,
 }
 
@@ -128,24 +128,28 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         index.sort_by_key(|item| item.addr());
 
         // register variant and uuid as well as object name and arch
-        self.variant_uuids.push(var.uuid().unwrap());
+        self.variant_uuids.sort_by_key(|x| x.uuid);
+        self.variant_uuids.push(IndexedUuid::new(&var.uuid().unwrap(), self.variants.len()));
         self.variants.push(index);
         self.object_uuid_mapping.push(format!("{}:{}", src, var.arch()));
 
         Ok(())
     }
 
-    fn make_string_slices(&self, strings: &[String]) -> Result<Vec<StoredSlice>> {
+    fn make_string_slices(&self, strings: &[String], try_compress: bool) -> Result<Vec<StoredSlice>> {
         let mut slices = vec![];
         for string in strings {
             let offset = self.tell()?;
-            let compressed = compress(string.as_bytes());
-            let (len, is_compressed) = if compressed.len() < string.as_bytes().len() {
-                (self.write_bytes(compressed.as_slice())?, true)
-            } else {
-                (self.write_bytes(string.as_bytes())?, false)
-            };
-            slices.push(StoredSlice::new(offset, len, is_compressed));
+            if try_compress {
+                let compressed = compress(string.as_bytes());
+                if compressed.len() < string.as_bytes().len() {
+                    let len = self.write_bytes(compressed.as_slice())?;
+                    slices.push(StoredSlice::new(offset, len, true));
+                    continue;
+                }
+            }
+            let len = self.write_bytes(string.as_bytes())?;
+            slices.push(StoredSlice::new(offset, len, false));
         }
         Ok(slices)
     }
@@ -179,22 +183,22 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         // need to use slices here.
         header.uuids_start = self.tell()? as u32;
         header.uuids_count = self.variant_uuids.len() as u32;
-        for uuid in self.variant_uuids.iter() {
-            self.write_bytes(uuid.as_bytes())?;
+        for indexed_uuid in self.variant_uuids.iter() {
+            self.write(indexed_uuid)?;
         }
 
         // next we write out the name + arch -> uuid index mapping
-        let slices = self.make_string_slices(&self.object_uuid_mapping[..])?;
+        let slices = self.make_string_slices(&self.object_uuid_mapping[..], false)?;
         self.write_slices(&slices[..], &mut header.tagged_object_names_start,
                           &mut header.tagged_object_names_count)?;
 
         // now write out all the object name sources
-        let slices = self.make_string_slices(&self.object_names[..])?;
+        let slices = self.make_string_slices(&self.object_names[..], true)?;
         self.write_slices(&slices[..], &mut header.object_names_start,
                           &mut header.object_names_count)?;
 
         // now write out all the symbols
-        let slices = self.make_string_slices(&self.symbols[..])?;
+        let slices = self.make_string_slices(&self.symbols[..], true)?;
         self.write_slices(&slices[..], &mut header.symbols_start,
                           &mut header.symbols_count)?;
 

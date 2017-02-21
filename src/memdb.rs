@@ -19,7 +19,8 @@ use super::{Result, ErrorKind};
 use super::sdk::SdkInfo;
 use super::dsym::{Object, Variant};
 use super::shoco::{compress, decompress};
-use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader};
+use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
+use super::utils::binsearch_by_key;
 
 
 enum Backing<'a> {
@@ -101,21 +102,9 @@ impl<'a> MemDb<'a> {
             Some(idx) => idx,
             None => { return Ok(None); }
         };
-        let mut low = 0;
-        let mut high = index.len();
 
-        while low < high {
-            let mid = (low + high) / 2;
-            let ii = &index[mid as usize];
-            if addr < ii.addr() {
-                high = mid;
-            } else {
-                low = mid + 1;
-            }
-        }
-
-        if low > 0 && low <= index.len() {
-            Ok(Some(self.index_item_to_symbol(&index[low - 1])?))
+        if let Some(item) = binsearch_by_key(index, addr, |item| item.addr()) {
+            Ok(Some(self.index_item_to_symbol(item)?))
         } else {
             Ok(None)
         }
@@ -157,7 +146,7 @@ impl<'a> MemDb<'a> {
     }
 
     #[inline(always)]
-    fn uuids(&self) -> Result<&[Uuid]> {
+    fn uuids(&self) -> Result<&[IndexedUuid]> {
         let head = self.header()?;
         self.get_slice(head.uuids_start as usize, head.uuids_count as usize)
     }
@@ -171,18 +160,16 @@ impl<'a> MemDb<'a> {
     #[inline(always)]
     fn get_index(&self, uuid: &Uuid) -> Result<Option<&[IndexItem]>> {
         let uuids = self.uuids()?;
-        for (idx, item_uuid) in uuids.iter().enumerate() {
-            if item_uuid == uuid {
-                let variant_slice = &self.variants()?[idx];
-                unsafe {
-                    let data = self.get_data(variant_slice.offset(),
-                                             variant_slice.len())?;
-                    let count = variant_slice.len() / mem::size_of::<IndexItem>();
-                    return Ok(Some(slice::from_raw_parts(
-                        mem::transmute(data.as_ptr()),
-                        count
-                    )));
-                }
+        if let Some(iuuid) = binsearch_by_key(uuids, *uuid, |item| *item.uuid()) {
+            let variant_slice = &self.variants()?[iuuid.idx()];
+            unsafe {
+                let data = self.get_data(variant_slice.offset(),
+                                         variant_slice.len())?;
+                let count = variant_slice.len() / mem::size_of::<IndexItem>();
+                return Ok(Some(slice::from_raw_parts(
+                    mem::transmute(data.as_ptr()),
+                    count
+                )));
             }
         }
         Ok(None)

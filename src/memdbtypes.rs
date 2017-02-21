@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 #[repr(C, packed)]
 #[derive(Default, Copy, Clone)]
 pub struct MemDbHeader {
@@ -21,12 +23,36 @@ pub struct StoredSlice {
 }
 
 #[repr(C, packed)]
+pub struct IndexedUuid {
+    pub uuid: Uuid,
+    pub idx: u16,
+}
+
+#[repr(C, packed)]
 #[derive(Debug)]
 pub struct IndexItem {
     addr_low: u32,
     addr_high: u16,
     src_id: u16,
     sym_id: u32,
+}
+
+impl IndexedUuid {
+
+    pub fn new(uuid: &Uuid, idx: usize) -> IndexedUuid {
+        IndexedUuid {
+            uuid: *uuid,
+            idx: idx as u16,
+        }
+    }
+
+    pub fn uuid(&self) -> &Uuid {
+        &self.uuid
+    }
+
+    pub fn idx(&self) -> usize {
+        self.idx as usize
+    }
 }
 
 impl StoredSlice {
