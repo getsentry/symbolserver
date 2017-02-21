@@ -12,6 +12,7 @@ extern crate regex;
 #[macro_use] extern crate lazy_static;
 extern crate mach_object;
 extern crate memmap;
+extern crate clap;
 
 pub use errors::{Result, Error, ErrorKind};
 
@@ -19,6 +20,8 @@ mod macros;
 mod errors;
 mod memdbdump;
 mod memdbtypes;
+
+pub mod cli;
 pub mod dsym;
 pub mod sdk;
 pub mod memdb;
