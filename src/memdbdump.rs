@@ -18,16 +18,6 @@ use super::shoco::compress;
 use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
 
 
-// stored information:
-//
-//      object name + arch -> uuid
-//      uuid -> stored variant
-//      stored variant + addr -> symbol
-//      symbol -> [object name id, symbol name id, symbol addr]
-//      object name id -> object name
-//      symbol name id -> symbol name
-//
-
 pub struct MemDbBuilder<W> {
     writer: RefCell<W>,
     info: SdkInfo,
