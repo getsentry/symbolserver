@@ -34,8 +34,8 @@ fn do_main() -> Result<()> {
     }
 
     let mdb = MemDb::from_path("/tmp/test.memdb")?;
-    let sym = mdb.lookup_by_uuid(&"63d32ddb-095d-3974-afc9-8a6cf7c8bbd6".parse::<Uuid>().unwrap(), 6815851772);
-    println!("{:?}", sym);
+    let sym = mdb.lookup_by_uuid(&"63d32ddb-095d-3974-afc9-8a6cf7c8bbd6".parse::<Uuid>().unwrap(), 6815851772).unwrap();
+    println!("{}", sym);
 
     Ok(())
 }

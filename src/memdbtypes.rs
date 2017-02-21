@@ -9,7 +9,7 @@ pub struct MemDbHeader {
     pub uuids_start: u32,
     pub uuids_count: u32,
     pub tagged_object_names_start: u32,
-    pub tagged_object_names_count: u32,
+    pub tagged_object_names_end: u32,
     pub object_names_start: u32,
     pub object_names_count: u32,
     pub symbols_start: u32,

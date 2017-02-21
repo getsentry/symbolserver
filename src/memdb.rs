@@ -8,7 +8,10 @@ use std::mem;
 use std::slice;
 use std::path::Path;
 use std::borrow::Cow;
+use std::ffi::CStr;
+use std::os::raw::c_char;
 
+use std::fmt;
 use uuid::Uuid;
 use memmap::{Mmap, Protection};
 
@@ -34,6 +37,12 @@ pub struct Symbol<'a> {
     object_name: Cow<'a, str>,
     symbol: Cow<'a, str>,
     addr: u64,
+}
+
+impl<'a> fmt::Display for Symbol<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:016x} {} ({})", self.addr(), self.symbol(), self.object_name())
+    }
 }
 
 impl<'a> Symbol<'a> {
@@ -89,19 +98,52 @@ impl<'a> MemDb<'a> {
         })
     }
 
-    /// Finds a symbol by UUID and address.
-    pub fn lookup_by_uuid(&'a self, uuid: &Uuid, addr: u64)
-        -> Result<Option<Symbol<'a>>>
-    {
-        let index = match self.get_index(uuid)? {
-            Some(idx) => idx,
-            None => { return Ok(None); }
-        };
+    fn get_cstr(&self, offset: usize) -> Result<&str> {
+        unsafe {
+            Ok(from_utf8(CStr::from_ptr(self.buffer().as_ptr().offset(
+                offset as isize) as *const c_char).to_bytes())?)
+        }
+    }
 
-        if let Some(item) = binsearch_by_key(index, addr, |item| item.addr()) {
-            Ok(Some(self.index_item_to_symbol(item)?))
+    fn find_uuid(&self, object_name: &str, arch: &str) -> Result<Option<&Uuid>> {
+        let header = self.header()?;
+        let mut offset = header.tagged_object_names_start as usize;
+        let refstr = format!("{}:{}", object_name, arch);
+        let mut uuid_idx = 0;
+        while offset < header.tagged_object_names_end as usize {
+            let s = self.get_cstr(offset)?;
+            if s == &refstr {
+                return Ok(Some(&self.uuids()?[uuid_idx].uuid));
+            }
+            offset += s.len();
+            uuid_idx += 1;
+        }
+        Ok(None)
+    }
+
+    fn lookup_impl(&'a self, uuid: &Uuid, addr: u64) -> Result<Option<Symbol<'a>>>
+    {
+        if let Some(index) = self.get_index(uuid)? {
+            if let Some(item) = binsearch_by_key(index, addr, |item| item.addr()) {
+                return Ok(Some(self.index_item_to_symbol(item)?));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Finds a symbol by UUID and address.
+    pub fn lookup_by_uuid(&'a self, uuid: &Uuid, addr: u64) -> Option<Symbol<'a>> {
+        self.lookup_impl(uuid, addr).ok().and_then(|x| x)
+    }
+
+    /// Finds a symbol by object name and architecture
+    pub fn lookup_by_object_name(&'a self, object_name: &str, arch: &str, addr: u64)
+        -> Option<Symbol<'a>>
+    {
+        if let Ok(Some(uuid)) = self.find_uuid(object_name, arch) {
+            self.lookup_impl(uuid, addr).ok().and_then(|x| x)
         } else {
-            Ok(None)
+            None
         }
     }
 

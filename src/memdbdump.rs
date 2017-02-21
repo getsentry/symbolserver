@@ -9,6 +9,8 @@ use std::slice;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use uuid::Uuid;
+
 use super::Result;
 use super::sdk::SdkInfo;
 use super::dsym::{Object, Variant};
@@ -33,7 +35,7 @@ pub struct MemDbBuilder<W> {
     symbols_map: HashMap<String, u32>,
     object_names: Vec<String>,
     object_names_map: HashMap<String, u16>,
-    object_uuid_mapping: Vec<String>,
+    object_uuid_mapping: Vec<(String, Uuid)>,
     variant_uuids: Vec<IndexedUuid>,
     variants: Vec<Vec<IndexItem>>,
 }
@@ -121,11 +123,13 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         }
         index.sort_by_key(|item| item.addr());
 
-        // register variant and uuid as well as object name and arch
-        self.variant_uuids.sort_by_key(|x| x.uuid);
+        // register variant and uuid
         self.variant_uuids.push(IndexedUuid::new(&var.uuid().unwrap(), self.variants.len()));
+        self.object_uuid_mapping.push((
+            format!("{}:{}", src, var.arch()),
+            var.uuid().unwrap()
+        ));
         self.variants.push(index);
-        self.object_uuid_mapping.push(format!("{}:{}", src, var.arch()));
 
         Ok(())
     }
@@ -177,14 +181,19 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         // need to use slices here.
         header.uuids_start = self.tell()? as u32;
         header.uuids_count = self.variant_uuids.len() as u32;
+        self.variant_uuids.sort_by_key(|x| x.uuid);
         for indexed_uuid in self.variant_uuids.iter() {
             self.write(indexed_uuid)?;
         }
 
-        // next we write out the name + arch -> uuid index mapping
-        let slices = self.make_string_slices(&self.object_uuid_mapping[..], false)?;
-        self.write_slices(&slices[..], &mut header.tagged_object_names_start,
-                          &mut header.tagged_object_names_count)?;
+        // next we write out the name + arch -> uuid index mapping.  We also sort
+        // this by uuid so that the index matches up.
+        header.tagged_object_names_start = self.tell()? as u32;
+        self.object_uuid_mapping.sort_by_key(|&(_, b)| b);
+        for &(ref tagged_object, _) in self.object_uuid_mapping.iter() {
+            self.write_bytes(format!("{}\x00", tagged_object).as_bytes())?;
+        }
+        header.tagged_object_names_end = self.tell()? as u32;
 
         // now write out all the object name sources
         let slices = self.make_string_slices(&self.object_names[..], true)?;
