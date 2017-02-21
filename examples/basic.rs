@@ -9,7 +9,7 @@ use std::io::Write;
 use uuid::Uuid;
 
 use symbolserver::sdk::Sdk;
-use symbolserver::memdb::{MemDbBuilder, MemDb};
+use symbolserver::memdb::MemDb;
 use symbolserver::Result;
 
 fn do_main() -> Result<()> {
