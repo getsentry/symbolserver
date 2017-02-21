@@ -81,7 +81,7 @@ impl SdkInfo {
                     (\d+)\.(\d+)(?:\.(\d+))?
                     \s+
                     \(([a-zA-Z0-9]+)\)
-                    (?:\.zip)?
+                    (?:\.zip|\.memdb)?
                 $
             ").unwrap();
         }
