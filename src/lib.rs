@@ -13,6 +13,7 @@ extern crate regex;
 extern crate mach_object;
 extern crate memmap;
 extern crate clap;
+extern crate pbr;
 
 pub use errors::{Result, Error, ErrorKind};
 

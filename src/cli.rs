@@ -1,9 +1,11 @@
+use std::fs;
+use std::env;
 use std::process;
 
 use clap::{App, Arg, SubCommand};
 
 use super::Result;
-use super::sdk::Sdk;
+use super::sdk::{Sdk, DumpOptions};
 
 
 pub fn main() {
@@ -44,11 +46,16 @@ fn execute() -> Result<()> {
 
 fn convert_sdk_action(path: &str, output_path: &str) -> Result<()> {
     let sdk = Sdk::new(&path)?;
+    let dst = env::current_dir().unwrap().join(output_path)
+        .join(&sdk.memdb_filename()).canonicalize()?;
+
     println!("Processing SDK");
     println!("  Name:       {}", sdk.info().name());
     println!("  Version:    {} [{}]", sdk.info().version(), sdk.info().build());
-    println!("  MemDB File: {}", sdk.memdb_filename());
-    sdk.dump_memdb_to_folder(output_path)?;
-    println!("Exported!");
+    println!("  MemDB File: {}", dst.display());
+    println!("");
+
+    let f = fs::File::create(dst)?;
+    sdk.dump_memdb(f, DumpOptions { ..Default::default() })?;
     Ok(())
 }

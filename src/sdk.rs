@@ -11,7 +11,7 @@ use mach_object::Error as MachError;
 
 use super::{Result, Error, ErrorKind};
 use super::dsym::Object;
-use super::memdbdump::MemDbBuilder;
+use super::memdbdump::dump_memdb;
 
 
 enum ObjectIterSource {
@@ -20,8 +20,21 @@ enum ObjectIterSource {
         idx: usize,
     },
     Dir {
-        base: PathBuf,
+        path: PathBuf,
         dir_iter: walkdir::Iter,
+    }
+}
+
+#[derive(Clone)]
+pub struct DumpOptions {
+    pub show_progress_bar: bool,
+}
+
+impl Default for DumpOptions {
+    fn default() -> DumpOptions {
+        DumpOptions {
+            show_progress_bar: true,
+        }
     }
 }
 
@@ -44,7 +57,7 @@ pub struct SdkInfo {
 }
 
 /// Iterates over all objects in an SDK
-pub struct ObjectsIter {
+pub struct Objects {
     source: ObjectIterSource,
 }
 
@@ -172,7 +185,7 @@ impl ObjectIterSource {
             })
         } else {
             Ok(ObjectIterSource::Dir {
-                base: path.as_ref().join("Symbols"),
+                path: path.as_ref().to_path_buf(),
                 dir_iter: walkdir::WalkDir::new(path.as_ref()).into_iter(),
             })
         }
@@ -202,15 +215,31 @@ fn strip_archive_file_prefix(path: &str) -> &str {
     path
 }
 
-impl<'a> Iterator for ObjectsIter {
-    type Item = Result<(String, Object<'static>)>;
+impl Objects {
+    pub fn file_count(&self) -> usize {
+        match self.source {
+            ObjectIterSource::Zip { ref archive, .. } => {
+                archive.len()
+            }
+            ObjectIterSource::Dir { ref path, .. } => {
+                let mut iter = walkdir::WalkDir::new(path).into_iter();
+                iter.count()
+            }
+        }
+    }
+}
 
-    fn next(&mut self) -> Option<Result<(String, Object<'static>)>> {
+impl<'a> Iterator for Objects {
+    type Item = Result<(usize, String, Object<'static>)>;
+
+    fn next(&mut self) -> Option<Result<(usize, String, Object<'static>)>> {
+        let mut offset = 0;
+
         macro_rules! try_return_obj {
             ($expr:expr, $name:expr) => {
                 match $expr {
                     Ok(rv) => {
-                        return Some(Ok(($name.to_string(), rv)));
+                        return Some(Ok((offset, $name.to_string(), rv)));
                     }
                     Err(err) => {
                         if let &ErrorKind::MachO(ref mach_err) = err.kind() {
@@ -225,6 +254,7 @@ impl<'a> Iterator for ObjectsIter {
         }
 
         loop {
+            offset += 1;
             match self.source {
                 ObjectIterSource::Zip { ref mut archive, ref mut idx } => {
                     if *idx >= archive.len() {
@@ -238,12 +268,14 @@ impl<'a> Iterator for ObjectsIter {
                             strip_archive_file_prefix(f.name()));
                     }
                 }
-                ObjectIterSource::Dir { ref base, ref mut dir_iter } => {
+                ObjectIterSource::Dir { ref path, ref mut dir_iter } => {
                     if let Some(dent_res) = dir_iter.next() {
                         let dent = iter_try!(dent_res);
                         let md = iter_try!(dent.metadata());
                         if md.is_file() && md.len() > 0 {
-                            let rp = dent.path().strip_prefix(base).unwrap_or(dent.path());
+                            let prefix = path.join("Symbols");
+                            let rp = dent.path().strip_prefix(&prefix)
+                                .unwrap_or(dent.path());
                             try_return_obj!(
                                 Object::from_path(dent.path()),
                                 rp.display());
@@ -277,8 +309,8 @@ impl Sdk {
     }
 
     /// Returns an object iterator
-    pub fn objects<'a>(&'a self) -> Result<ObjectsIter> {
-        Ok(ObjectsIter {
+    pub fn objects<'a>(&'a self) -> Result<Objects> {
+        Ok(Objects {
             source: ObjectIterSource::from_path(&self.path)?,
         })
     }
@@ -286,20 +318,9 @@ impl Sdk {
     /// Writes a memdb file for the SDK
     ///
     /// This can then be later read with the `MemDb` type.
-    pub fn dump_memdb<W: Write + Seek>(&self, writer: W) -> Result<()> {
-        let mut builder = MemDbBuilder::new(writer, self.info())?;
-        for obj_res in self.objects()? {
-            let (filename, obj) = obj_res?;
-            builder.write_object(&obj, Some(&filename))?;
-        }
-        builder.flush()?;
+    pub fn dump_memdb<W: Write + Seek>(&self, writer: W, opts: DumpOptions) -> Result<()> {
+        dump_memdb(writer, self.info(), opts, self.objects()?)?;
         Ok(())
-    }
-
-    /// Writes a memdb file into the given folder with the default filename.
-    pub fn dump_memdb_to_folder<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let mut f = fs::File::create(path.as_ref().join(self.memdb_filename()))?;
-        self.dump_memdb(&mut f)
     }
 
     /// Returns the intended memdb filename
