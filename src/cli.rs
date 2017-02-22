@@ -6,6 +6,7 @@ use clap::{App, Arg, SubCommand};
 
 use super::Result;
 use super::sdk::{Sdk, DumpOptions};
+use super::config::Config;
 
 
 pub fn main() {
@@ -22,6 +23,12 @@ fn execute() -> Result<()> {
     let app = App::new("SymbolServer")
         .author("Sentry")
         .about("Serves up apple system symbols")
+        .arg(Arg::with_name("config")
+             .long("config")
+             .value_name("FILE")
+             .help("The path to the config file"))
+        .subcommand(
+            SubCommand::with_name("test"))
         .subcommand(
             SubCommand::with_name("convert-sdk")
                 .about("Converts an SDK into a memdb file")
@@ -40,6 +47,13 @@ fn execute() -> Result<()> {
                      .long("output")
                      .help("Where the result should be stored")));
     let matches = app.get_matches();
+
+    let cfg = if let Some(config_path) = matches.value_of("config") {
+        Config::load_file(config_path)?
+    } else {
+        Config::load_default()?
+    };
+    println!("{:?}", cfg);
 
     if let Some(matches) = matches.subcommand_matches("convert-sdk") {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),

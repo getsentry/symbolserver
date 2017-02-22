@@ -4,6 +4,7 @@
 #[macro_use] extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
+extern crate serde_yaml;
 #[macro_use] extern crate error_chain;
 extern crate zip;
 extern crate walkdir;
@@ -18,13 +19,14 @@ extern crate xz2;
 extern crate tempfile;
 extern crate humansize;
 
-pub use errors::{Result, Error, ErrorKind};
+pub use errors::{Result, Error, ErrorKind, ResultExt};
 
 mod macros;
 mod errors;
 mod memdbdump;
 mod memdbtypes;
 mod utils;
+mod config;
 
 pub mod cli;
 pub mod dsym;
