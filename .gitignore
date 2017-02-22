@@ -3,3 +3,4 @@ target
 Cargo.lock
 *.memdb
 *.memdbz
+symbolserver.yml
