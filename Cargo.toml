@@ -17,4 +17,6 @@ uuid = "0.2"
 lazy_static = "0.2.2"
 clap = "2.20.5"
 pbr = "1.0.0-alpha.2"
+xz2 = "0.1.1"
+tempfile = "2.1.5"
 mach_object = { git = "https://github.com/flier/rust-macho" }

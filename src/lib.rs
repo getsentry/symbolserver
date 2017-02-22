@@ -14,6 +14,8 @@ extern crate mach_object;
 extern crate memmap;
 extern crate clap;
 extern crate pbr;
+extern crate xz2;
+extern crate tempfile;
 
 pub use errors::{Result, Error, ErrorKind};
 

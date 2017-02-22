@@ -28,12 +28,14 @@ enum ObjectIterSource {
 #[derive(Clone)]
 pub struct DumpOptions {
     pub show_progress_bar: bool,
+    pub compress: bool,
 }
 
 impl Default for DumpOptions {
     fn default() -> DumpOptions {
         DumpOptions {
-            show_progress_bar: true,
+            show_progress_bar: false,
+            compress: false,
         }
     }
 }

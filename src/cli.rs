@@ -31,6 +31,10 @@ fn execute() -> Result<()> {
                      .required(true)
                      .multiple(true)
                      .help("Path to the support folder"))
+                .arg(Arg::with_name("compress")
+                     .short("c")
+                     .long("compress")
+                     .help("Write compressed files instead."))
                 .arg(Arg::with_name("output-path")
                      .short("o")
                      .long("output")
@@ -39,13 +43,16 @@ fn execute() -> Result<()> {
 
     if let Some(matches) = matches.subcommand_matches("convert-sdk") {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),
-                           matches.value_of("output-path").unwrap_or("."))?;
+                           matches.value_of("output-path").unwrap_or("."),
+                           matches.is_present("compress"))?;
     }
 
     Ok(())
 }
 
-fn convert_sdk_action(paths: Vec<&str>, output_path: &str) -> Result<()> {
+fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
+    -> Result<()>
+{
     let dst_base = env::current_dir().unwrap().join(output_path);
 
     for (idx, path) in paths.iter().enumerate() {
@@ -53,11 +60,23 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str) -> Result<()> {
             println!("");
         }
         let sdk = Sdk::new(&path)?;
-        let dst = dst_base.join(&sdk.memdb_filename());
+        let mut dst = dst_base.join(&sdk.memdb_filename());
+        if compress {
+            dst.set_extension("memdbz");
+        }
+
         println!("SDK {} ({} {}):", sdk.info().name(),
                  sdk.info().version(), sdk.info().build());
-        let f = fs::File::create(dst)?;
-        sdk.dump_memdb(f, DumpOptions { ..Default::default() })?;
+
+        // make sure we close the file at the end, in case we want to
+        // re-open it for compressing.
+        let f = fs::File::create(&dst)?;
+        let options = DumpOptions {
+            show_progress_bar: true,
+            compress: compress,
+            ..Default::default()
+        };
+        sdk.dump_memdb(f, options)?;
     }
 
     Ok(())

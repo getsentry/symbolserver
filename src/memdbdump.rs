@@ -3,7 +3,8 @@
 //! A support folder with SDK debug symbols can be processed into a
 //! in-memory database format which is a flat file on the file system
 //! that gets mmaped into the process.
-use std::io::{Write, Seek, SeekFrom, Stdout};
+use std::io::{Read, Write, Seek, SeekFrom, Stdout, ErrorKind as IoErrorKind};
+use std::fs::File;
 use std::mem;
 use std::slice;
 use std::path::Path;
@@ -13,6 +14,8 @@ use std::time::Duration;
 
 use uuid::Uuid;
 use pbr::ProgressBar;
+use xz2::write::XzEncoder;
+use tempfile::tempfile;
 
 use super::Result;
 use super::sdk::{SdkInfo, DumpOptions, Objects};
@@ -22,6 +25,7 @@ use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
 
 pub struct MemDbBuilder<W> {
     writer: RefCell<W>,
+    tempfile: Option<RefCell<File>>,
     info: SdkInfo,
     symbols: Vec<String>,
     symbols_map: HashMap<String, u32>,
@@ -51,6 +55,9 @@ fn make_progress_bar(count: usize) -> ProgressBar<Stdout> {
     pb
 }
 
+trait WriteSeek : Write + Seek {}
+impl<T: Write+Seek> WriteSeek for T {}
+
 impl<W: Write + Seek> MemDbBuilder<W> {
 
     pub fn new(writer: W, info: &SdkInfo, opts: DumpOptions, object_count: usize)
@@ -58,6 +65,11 @@ impl<W: Write + Seek> MemDbBuilder<W> {
     {
         let rv = MemDbBuilder {
             writer: RefCell::new(writer),
+            tempfile: if opts.compress {
+                Some(RefCell::new(tempfile()?))
+            } else {
+                None
+            },
             info: info.clone(),
             symbols: vec![],
             symbols_map: HashMap::new(),
@@ -80,27 +92,43 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         Ok(rv)
     }
 
+    fn with_file<T, F: FnOnce(&mut WriteSeek) -> T>(&self, f: F) -> T {
+        if self.options.compress {
+            f(&mut *self.tempfile.as_ref().unwrap().borrow_mut() as &mut WriteSeek)
+        } else {
+            f(&mut *self.writer.borrow_mut() as &mut WriteSeek)
+        }
+    }
+
     fn write_bytes(&self, x: &[u8]) -> Result<usize> {
-        self.writer.borrow_mut().write_all(x)?;
-        Ok(x.len())
+        self.with_file(|mut w| {
+            w.write_all(x)?;
+            Ok(x.len())
+        })
     }
 
     fn write<T>(&self, x: &T) -> Result<usize> {
         unsafe {
             let bytes : *const u8 = mem::transmute(x);
             let size = mem::size_of_val(x);
-            self.writer.borrow_mut().write_all(slice::from_raw_parts(bytes, size))?;
-            Ok(size)
+            self.with_file(|mut w| {
+                w.write_all(slice::from_raw_parts(bytes, size))?;
+                Ok(size)
+            })
         }
     }
 
     fn seek(&self, new_pos: usize) -> Result<()> {
-        self.writer.borrow_mut().seek(SeekFrom::Start(new_pos as u64))?;
-        Ok(())
+        self.with_file(|mut w| {
+            w.seek(SeekFrom::Start(new_pos as u64))?;
+            Ok(())
+        })
     }
 
     fn tell(&self) -> Result<usize> {
-        Ok(self.writer.borrow_mut().seek(SeekFrom::Current(0))? as usize)
+        self.with_file(|mut w| {
+            Ok(w.seek(SeekFrom::Current(0))? as usize)
+        })
     }
 
     fn inc_progress_bar(&self, step: usize) {
@@ -219,7 +247,11 @@ impl<W: Write + Seek> MemDbBuilder<W> {
 
     pub fn flush(&mut self) -> Result<()> {
         self.set_progress_message("Done processing");
-        self.new_progress_bar(5);
+        self.new_progress_bar(if self.options.compress {
+            6
+        } else {
+            5
+        });
 
         let mut header = MemDbHeader { ..Default::default() };
         header.version = 1;
@@ -288,6 +320,28 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         // write the updated header
         self.seek(0)?;
         self.write(&header)?;
+
+        // compress if necessary
+        if self.options.compress {
+            self.inc_progress_bar(1);
+            self.set_progress_message("Compressing file");
+            self.seek(0)?;
+            let mut reader = self.tempfile.as_ref().unwrap().borrow_mut();
+            let mut writer = self.writer.borrow_mut();
+            let mut buf = [0; 32768];
+            let mut idx = 0;
+            loop {
+                idx += 1;
+                self.tick_progress_bar(idx);
+                let len = match reader.read(&mut buf) {
+                    Ok(0) => { break },
+                    Ok(len) => len,
+                    Err(ref e) if e.kind() == IoErrorKind::Interrupted => continue,
+                    Err(e) => return Err(e.into()),
+                };
+                writer.write_all(&buf[..len])?;
+            }
+        }
 
         // done!
         self.set_progress_message("Done writing");
