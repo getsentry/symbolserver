@@ -224,8 +224,7 @@ impl Objects {
                 archive.len()
             }
             ObjectIterSource::Dir { ref path, .. } => {
-                let mut iter = walkdir::WalkDir::new(path).into_iter();
-                iter.count()
+                walkdir::WalkDir::new(path).into_iter().count()
             }
         }
     }

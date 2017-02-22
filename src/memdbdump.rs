@@ -10,7 +10,6 @@ use std::slice;
 use std::path::Path;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::time::Duration;
 
 use uuid::Uuid;
 use pbr::ProgressBar;
@@ -45,7 +44,6 @@ pub struct DumpState {
 fn make_progress_bar(count: usize) -> ProgressBar<Stdout> {
     let mut pb = ProgressBar::new(count as u64);
     pb.tick_format("⠇⠋⠙⠸⠴⠦");
-    pb.set_max_refresh_rate(Some(Duration::from_millis(16)));
     pb.format("[■□□]");
     pb.show_tick = true;
     pb.show_speed = false;
@@ -140,6 +138,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
     fn set_progress_message(&self, msg: &str) {
         if let Some(ref mut pb) = self.state.borrow_mut().pb {
             pb.message(&format!("  {: <40}", msg));
+            pb.tick();
         }
     }
 
@@ -328,7 +327,8 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             self.seek(0)?;
             let mut reader = self.tempfile.as_ref().unwrap().borrow_mut();
             let mut writer = self.writer.borrow_mut();
-            let mut buf = [0; 32768];
+            let mut writer = XzEncoder::new(&mut *writer, 9);
+            let mut buf = [0; 4096];
             let mut idx = 0;
             loop {
                 idx += 1;
