@@ -112,7 +112,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
 
     fn set_progress_message(&self, msg: &str) {
         if let Some(ref mut pb) = self.state.borrow_mut().pb {
-            pb.message(&format!("{: <40}", msg));
+            pb.message(&format!("  {: <40}", msg));
         }
     }
 

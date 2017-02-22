@@ -29,6 +29,7 @@ fn execute() -> Result<()> {
                      .index(1)
                      .value_name("PATH")
                      .required(true)
+                     .multiple(true)
                      .help("Path to the support folder"))
                 .arg(Arg::with_name("output-path")
                      .short("o")
@@ -37,25 +38,27 @@ fn execute() -> Result<()> {
     let matches = app.get_matches();
 
     if let Some(matches) = matches.subcommand_matches("convert-sdk") {
-        convert_sdk_action(matches.value_of("path").unwrap(),
+        convert_sdk_action(matches.values_of("path").unwrap().collect(),
                            matches.value_of("output-path").unwrap_or("."))?;
     }
 
     Ok(())
 }
 
-fn convert_sdk_action(path: &str, output_path: &str) -> Result<()> {
-    let sdk = Sdk::new(&path)?;
-    let dst = env::current_dir().unwrap().join(output_path)
-        .join(&sdk.memdb_filename()).canonicalize()?;
+fn convert_sdk_action(paths: Vec<&str>, output_path: &str) -> Result<()> {
+    let dst_base = env::current_dir().unwrap().join(output_path);
 
-    println!("Processing SDK");
-    println!("  Name:       {}", sdk.info().name());
-    println!("  Version:    {} [{}]", sdk.info().version(), sdk.info().build());
-    println!("  MemDB File: {}", dst.display());
-    println!("");
+    for (idx, path) in paths.iter().enumerate() {
+        if idx > 0 {
+            println!("");
+        }
+        let sdk = Sdk::new(&path)?;
+        let dst = dst_base.join(&sdk.memdb_filename());
+        println!("SDK {} ({} {}):", sdk.info().name(),
+                 sdk.info().version(), sdk.info().build());
+        let f = fs::File::create(dst)?;
+        sdk.dump_memdb(f, DumpOptions { ..Default::default() })?;
+    }
 
-    let f = fs::File::create(dst)?;
-    sdk.dump_memdb(f, DumpOptions { ..Default::default() })?;
     Ok(())
 }
