@@ -345,10 +345,10 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             let compressed_file_size = writer.seek(SeekFrom::Current(0))? as usize;
             let pct = (compressed_file_size * 100) / file_size;
             self.progress_bar_finish(&format!(
-                "Compressed by {}% from {} to {}",
-                pct,
+                "Compressed from {} to {} ({}% of original size)",
                 file_size_format(file_size),
-                file_size_format(compressed_file_size)));
+                file_size_format(compressed_file_size),
+                pct));
         }
 
         Ok(())
