@@ -1,3 +1,11 @@
+pub fn file_size_format(bytes: usize) -> String {
+    use humansize::FileSize;
+    use humansize::file_size_opts::BINARY;
+    bytes.file_size(BINARY)
+        .map(|x| x.replace(" ", ""))
+        .unwrap_or_else(|_| bytes.to_string())
+}
+
 pub fn binsearch_by_key<'a, T, B, F>(slice: &'a [T], item: B, mut f: F) -> Option<&'a T>
     where B: Ord, F: FnMut(&T) -> B
 {

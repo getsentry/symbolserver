@@ -20,6 +20,7 @@ use super::Result;
 use super::sdk::{SdkInfo, DumpOptions, Objects};
 use super::dsym::{Object, Variant};
 use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
+use super::utils::file_size_format;
 
 
 pub struct MemDbBuilder<W> {
@@ -33,6 +34,7 @@ pub struct MemDbBuilder<W> {
     object_uuid_mapping: Vec<(String, Uuid)>,
     variant_uuids: Vec<IndexedUuid>,
     variants: Vec<Vec<IndexItem>>,
+    symbol_count: usize,
     state: RefCell<DumpState>,
     options: DumpOptions,
 }
@@ -76,6 +78,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             object_uuid_mapping: vec![],
             variant_uuids: vec![],
             variants: vec![],
+            symbol_count: 0,
             state: RefCell::new(DumpState {
                 pb: if opts.show_progress_bar {
                     Some(make_progress_bar(object_count))
@@ -87,6 +90,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         };
         let header = MemDbHeader { ..Default::default() };
         rv.write(&header)?;
+        rv.set_progress_message("Initializing");
         Ok(rv)
     }
 
@@ -137,7 +141,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
 
     fn set_progress_message(&self, msg: &str) {
         if let Some(ref mut pb) = self.state.borrow_mut().pb {
-            pb.message(&format!("  {: <40}", msg));
+            pb.message(&format!("  ◦ {: <40}", msg));
             pb.tick();
         }
     }
@@ -150,9 +154,9 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         }
     }
 
-    fn progress_bar_finish(&self) {
+    fn progress_bar_finish(&self, msg: &str) {
         if let Some(ref mut pb) = self.state.borrow_mut().pb {
-            pb.finish();
+            pb.finish_print(&format!("  ● {}", msg));
             println!("");
         }
     }
@@ -161,7 +165,6 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         if !self.options.show_progress_bar {
             return;
         }
-        self.progress_bar_finish();
         self.state.borrow_mut().pb = Some(make_progress_bar(count));
     }
 
@@ -209,6 +212,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             let sym_id = self.add_symbol(sym);
             index.push(IndexItem::new(addr, src_id, sym_id));
             self.tick_progress_bar(idx);
+            self.symbol_count += 1;
         }
         index.sort_by_key(|item| item.addr());
 
@@ -245,19 +249,16 @@ impl<W: Write + Seek> MemDbBuilder<W> {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        self.set_progress_message("Done processing");
-        self.new_progress_bar(if self.options.compress {
-            6
-        } else {
-            5
-        });
+        self.progress_bar_finish(&format!(
+            "Processed {} symbols", self.symbol_count));
+        self.new_progress_bar(3);
 
         let mut header = MemDbHeader { ..Default::default() };
         header.version = 1;
         header.sdk_info.set_from_sdk_info(&self.info);
 
         self.inc_progress_bar(1);
-        self.set_progress_message("Writing variants");
+        self.set_progress_message("Writing metadata");
 
         // start by writing out the index of the variants and record the slices.
         let mut slices = vec![];
@@ -284,9 +285,6 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             self.tick_progress_bar(idx);
         }
 
-        self.inc_progress_bar(1);
-        self.set_progress_message("Writing variant mapping");
-
         // next we write out the name + arch -> uuid index mapping.  We also sort
         // this by uuid so that the index matches up.
         header.tagged_object_names_start = self.tell()? as u32;
@@ -296,9 +294,6 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             self.tick_progress_bar(idx);
         }
         header.tagged_object_names_end = self.tell()? as u32;
-
-        self.inc_progress_bar(1);
-        self.set_progress_message("Writing sources");
 
         // now write out all the object name sources
         let slices = self.make_string_slices(&self.object_names[..], true)?;
@@ -316,36 +311,45 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         self.inc_progress_bar(1);
         self.set_progress_message("Writing headers");
 
+        let file_size = self.tell()?;
+
         // write the updated header
         self.seek(0)?;
         self.write(&header)?;
 
+        self.progress_bar_finish(&format!(
+            "Indexed {} variants", self.variant_uuids.len()));
+
         // compress if necessary
         if self.options.compress {
-            self.inc_progress_bar(1);
-            self.set_progress_message("Compressing file");
+            let mut buf = [0; 4096];
+            let steps = file_size / buf.len() + 1;
+            self.new_progress_bar(steps);
+            self.set_progress_message("Compressing");
             self.seek(0)?;
             let mut reader = self.tempfile.as_ref().unwrap().borrow_mut();
             let mut writer = self.writer.borrow_mut();
-            let mut writer = XzEncoder::new(&mut *writer, 9);
-            let mut buf = [0; 4096];
-            let mut idx = 0;
-            loop {
-                idx += 1;
-                self.tick_progress_bar(idx);
-                let len = match reader.read(&mut buf) {
-                    Ok(0) => { break },
-                    Ok(len) => len,
-                    Err(ref e) if e.kind() == IoErrorKind::Interrupted => continue,
-                    Err(e) => return Err(e.into()),
-                };
-                writer.write_all(&buf[..len])?;
+            {
+                let mut writer = XzEncoder::new(&mut *writer, 9);
+                loop {
+                    let len = match reader.read(&mut buf) {
+                        Ok(0) => { break },
+                        Ok(len) => len,
+                        Err(ref e) if e.kind() == IoErrorKind::Interrupted => continue,
+                        Err(e) => return Err(e.into()),
+                    };
+                    self.inc_progress_bar(1);
+                    writer.write_all(&buf[..len])?;
+                }
             }
+            let compressed_file_size = writer.seek(SeekFrom::Current(0))? as usize;
+            let pct = (compressed_file_size * 100) / file_size;
+            self.progress_bar_finish(&format!(
+                "Compressed by {}% from {} to {}",
+                pct,
+                file_size_format(file_size),
+                file_size_format(compressed_file_size)));
         }
-
-        // done!
-        self.set_progress_message("Done writing");
-        self.progress_bar_finish();
 
         Ok(())
     }

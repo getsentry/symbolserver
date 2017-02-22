@@ -16,6 +16,7 @@ extern crate clap;
 extern crate pbr;
 extern crate xz2;
 extern crate tempfile;
+extern crate humansize;
 
 pub use errors::{Result, Error, ErrorKind};
 
