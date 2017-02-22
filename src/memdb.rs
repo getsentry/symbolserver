@@ -16,7 +16,6 @@ use uuid::Uuid;
 use memmap::{Mmap, Protection};
 
 use super::{Result, ErrorKind};
-use super::shoco::decompress;
 use super::sdk::SdkInfo;
 use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
 use super::utils::binsearch_by_key;
@@ -240,8 +239,7 @@ impl<'a> MemDb<'a> {
     fn get_string(&'a self, slice: &StoredSlice) -> Result<Cow<'a, str>> {
         let bytes = self.backing.get_data(slice.offset(), slice.len())?;
         if slice.is_compressed() {
-            let decompressed = decompress(bytes);
-            Ok(Cow::Owned(String::from_utf8(decompressed)?))
+            panic!("We do not support compression");
         } else {
             Ok(Cow::Borrowed(from_utf8(bytes)?))
         }

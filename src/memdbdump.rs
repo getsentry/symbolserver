@@ -17,7 +17,6 @@ use pbr::ProgressBar;
 use super::Result;
 use super::sdk::{SdkInfo, DumpOptions, Objects};
 use super::dsym::{Object, Variant};
-use super::shoco::compress;
 use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
 
 
@@ -197,18 +196,10 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         Ok(())
     }
 
-    fn make_string_slices(&self, strings: &[String], try_compress: bool) -> Result<Vec<StoredSlice>> {
+    fn make_string_slices(&self, strings: &[String], _try_compress: bool) -> Result<Vec<StoredSlice>> {
         let mut slices = vec![];
         for (idx, string) in strings.iter().enumerate() {
             let offset = self.tell()?;
-            if try_compress {
-                let compressed = compress(string.as_bytes());
-                if compressed.len() < string.as_bytes().len() {
-                    let len = self.write_bytes(compressed.as_slice())?;
-                    slices.push(StoredSlice::new(offset, len, true));
-                    continue;
-                }
-            }
             let len = self.write_bytes(string.as_bytes())?;
             slices.push(StoredSlice::new(offset, len, false));
             self.tick_progress_bar(idx);

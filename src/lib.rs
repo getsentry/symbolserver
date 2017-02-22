@@ -21,13 +21,9 @@ mod macros;
 mod errors;
 mod memdbdump;
 mod memdbtypes;
+mod utils;
 
 pub mod cli;
 pub mod dsym;
 pub mod sdk;
 pub mod memdb;
-
-// public for the tests but hidden away
-#[doc(hidden)]
-pub mod shoco;
-mod utils;
