@@ -5,6 +5,7 @@
 extern crate serde;
 extern crate serde_json;
 extern crate serde_yaml;
+extern crate serde_xml;
 #[macro_use] extern crate error_chain;
 extern crate zip;
 extern crate walkdir;
@@ -18,6 +19,8 @@ extern crate pbr;
 extern crate xz2;
 extern crate tempfile;
 extern crate humansize;
+extern crate rusoto;
+extern crate chrono;
 
 pub use errors::{Result, Error, ErrorKind, ResultExt};
 
@@ -27,6 +30,7 @@ mod memdbdump;
 mod memdbtypes;
 mod utils;
 mod config;
+mod s3;
 
 pub mod cli;
 pub mod dsym;

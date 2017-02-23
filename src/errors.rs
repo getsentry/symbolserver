@@ -6,6 +6,8 @@ use mach_object;
 use zip;
 use walkdir;
 use serde_yaml;
+use serde_xml;
+use rusoto;
 
 
 error_chain! {
@@ -50,5 +52,7 @@ error_chain! {
         Utf8Error(Utf8Error);
         FromUtf8Error(FromUtf8Error);
         YamlError(serde_yaml::Error);
+        XmlError(serde_xml::Error);
+        AwsTslError(rusoto::TlsError);
     }
 }

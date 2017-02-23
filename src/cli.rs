@@ -98,7 +98,9 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
 }
 
 fn sync_symbols_action(config: &Config) -> Result<()> {
+    use super::s3::test;
     println!("aws access key: {}", config.get_aws_access_key()?);
     println!("bucket url: {}", config.get_aws_bucket_url()?);
+    test(config)?;
     Ok(())
 }
