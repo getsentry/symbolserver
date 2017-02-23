@@ -28,7 +28,7 @@ fn execute() -> Result<()> {
              .value_name("FILE")
              .help("The path to the config file"))
         .subcommand(
-            SubCommand::with_name("test"))
+            SubCommand::with_name("sync-symbols"))
         .subcommand(
             SubCommand::with_name("convert-sdk")
                 .about("Converts an SDK into a memdb file")
@@ -58,6 +58,8 @@ fn execute() -> Result<()> {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),
                            matches.value_of("output-path").unwrap_or("."),
                            matches.is_present("compress"))?;
+    } else if let Some(_matches) = matches.subcommand_matches("sync-symbols") {
+        sync_symbols_action(&cfg)?;
     }
 
     Ok(())
@@ -92,5 +94,11 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
         sdk.dump_memdb(f, options)?;
     }
 
+    Ok(())
+}
+
+fn sync_symbols_action(config: &Config) -> Result<()> {
+    println!("aws access key: {}", config.get_aws_access_key()?);
+    println!("bucket url: {}", config.get_aws_bucket_url()?);
     Ok(())
 }
