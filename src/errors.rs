@@ -31,6 +31,9 @@ error_chain! {
             description("failed to load config file")
             display("failed to load config file: {}", err)
         }
+        MissingConfigKey(path: &'static str, env_var: Option<&'static str>) {
+            description("encountered a missing config key")
+        }
     }
 
     foreign_links {

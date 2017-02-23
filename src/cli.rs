@@ -53,7 +53,6 @@ fn execute() -> Result<()> {
     } else {
         Config::load_default()?
     };
-    println!("{:?}", cfg);
 
     if let Some(matches) = matches.subcommand_matches("convert-sdk") {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),
