@@ -4,7 +4,6 @@
 /// rusoto but that does not support streaming from S3 yet.
 
 use std::result::Result as StdResult;
-use std::fmt;
 use std::env;
 use std::io::{Read, Cursor};
 
@@ -30,7 +29,6 @@ struct FlexibleCredentialsProvider<'a> {
 
 /// Abstracts over S3 operations
 pub struct S3<'a> {
-    config: &'a Config,
     url: Url,
     client: S3Client<FlexibleCredentialsProvider<'a>, HyperClient>,
 }
@@ -69,7 +67,6 @@ fn new_hyper_client() -> Result<HyperClient> {
         format!("Couldn't create NativeTlsClient."))?;
     let mut client = if let Ok(proxy_url) = env::var("http_proxy") {
         let proxy : Url = proxy_url.parse()?;
-        let connector = HttpConnector;
         let proxy_config = ProxyConfig::new(
             "http", proxy.host_str().unwrap().to_string(),
             proxy.port().unwrap(), HttpConnector, ssl);
@@ -87,7 +84,6 @@ impl<'a> S3<'a> {
     /// Creates an S3 abstraction from a given config.
     pub fn from_config(config: &'a Config) -> Result<S3<'a>> {
         Ok(S3 {
-            config: config,
             url: config.get_aws_bucket_url()?,
             client: S3Client::new(new_hyper_client().chain_err(
                     || "Could not configure TLS layer")?,
