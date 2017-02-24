@@ -24,9 +24,13 @@ tempfile = "^2.1.5"
 humansize = "^1.0.0"
 chrono = "^0.2.25"
 hyper = "^0.10.4"
+hyper-native-tls = "^0.2.2"
 url = "^1.4.0"
 md5 = "^0.3.3"
+log = "^0.3.6"
 rustc-serialize = "0.3.22"
 if_chain = "^0.1.2"
-rusoto = { version = "0.23.0", features = ["s3"] }
+# We use our own version for now because of
+#   https://github.com/rusoto/rusoto/pull/569
+rusoto = { git = "https://github.com/mitsuhiko/rusoto", features = ["s3"] }
 mach_object = { git = "https://github.com/flier/rust-macho" }

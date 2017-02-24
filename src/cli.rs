@@ -3,14 +3,38 @@ use std::env;
 use std::process;
 
 use clap::{App, Arg, SubCommand};
+use log;
 
 use super::Result;
 use super::sdk::{Sdk, DumpOptions};
 use super::config::Config;
 use super::memdbstash::MemDbStash;
 
+struct SimpleLogger;
+
+impl log::Log for SimpleLogger {
+
+    fn enabled(&self, metadata: &log::LogMetadata) -> bool {
+        metadata.level() <= log::LogLevel::Info
+    }
+
+    fn log(&self, record: &log::LogRecord) {
+        if self.enabled(record.metadata()) {
+            println!("[{}] {}: {}", record.level(),
+                record.target(), record.args());
+        }
+    }
+}
+
+fn setup_logging() {
+    log::set_logger(|max_log_level| {
+        max_log_level.set(log::LogLevelFilter::Warn);
+        Box::new(SimpleLogger)
+    }).unwrap();
+}
 
 pub fn main() {
+    setup_logging();
     match execute() {
         Ok(()) => {},
         Err(err) => {

@@ -1,7 +1,10 @@
 use std::fs;
 use std::io;
+use std::iter;
+use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::Values as HashMapValuesIter;
 
 use serde_json;
 
@@ -16,7 +19,7 @@ pub struct MemDbStash<'a> {
     s3: S3<'a>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RemoteSdk {
     filename: String,
     info: SdkInfo,
@@ -26,7 +29,7 @@ pub struct RemoteSdk {
 
 #[derive(Serialize, Deserialize, Default, Debug)]
 struct SyncState {
-    files: HashMap<String, RemoteSdk>,
+    sdks: HashMap<String, RemoteSdk>,
 }
 
 impl RemoteSdk {
@@ -39,8 +42,28 @@ impl RemoteSdk {
         }
     }
 
+    pub fn filename(&self) -> &str {
+        &self.filename
+    }
+
     pub fn local_filename(&self) -> &str {
         self.filename.trim_right_matches('z')
+    }
+
+    pub fn info(&self) -> &SdkInfo {
+        &self.info
+    }
+}
+
+pub type SdksIter<'a> = HashMapValuesIter<'a, String, RemoteSdk>;
+
+impl SyncState {
+    pub fn get_sdk(&self, filename: &str) -> Option<&RemoteSdk> {
+        self.sdks.get(filename)
+    }
+
+    pub fn sdks<'a>(&'a self) -> SdksIter<'a> {
+        self.sdks.values()
     }
 }
 
@@ -73,19 +96,37 @@ impl<'a> MemDbStash<'a> {
     }
 
     fn get_remote_state(&self) -> Result<SyncState> {
-        let mut files = HashMap::new();
+        let mut sdks = HashMap::new();
         for remote_sdk in self.s3.list_upstream_sdks()? {
-            files.insert(remote_sdk.local_filename().into(), remote_sdk);
+            sdks.insert(remote_sdk.local_filename().into(), remote_sdk);
         }
-        Ok(SyncState { files: files })
+        Ok(SyncState { sdks: sdks })
+    }
+
+    fn update_sdk(&self, sdk: &RemoteSdk) -> Result<()> {
+        println!("Synching {}", sdk.info());
+        let mut src = self.s3.download_sdk(sdk)?;
+        let mut dst = fs::File::create(self.path.join(sdk.local_filename()))?;
+        io::copy(&mut src, &mut dst);
+        Ok(())
     }
 
     pub fn sync(&self) -> Result<()> {
         let local_state = self.get_local_state()?;
         let remote_state = self.get_remote_state()?;
+        let mut to_delete : HashSet<&str> = HashSet::from_iter(
+            local_state.sdks().map(|x| x.local_filename()));
 
-        println!("LOCAL:  {:?}", local_state);
-        println!("REMOTE: {:?}", remote_state);
+        for sdk in remote_state.sdks() {
+            if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
+                if local_sdk != sdk {
+                    self.update_sdk(&sdk)?;
+                }
+            } else {
+                self.update_sdk(&sdk)?;
+            }
+            to_delete.remove(sdk.local_filename());
+        }
 
         Ok(())
     }

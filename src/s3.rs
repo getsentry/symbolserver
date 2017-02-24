@@ -5,13 +5,17 @@
 
 use std::result::Result as StdResult;
 use std::fmt;
+use std::env;
+use std::io::{Read, Cursor};
 
 use rusoto::{ProvideAwsCredentials, AwsCredentials, CredentialsError,
              ChainProvider};
-use rusoto::s3::{S3Client, ListObjectsRequest, Object};
-use rusoto::default_tls_client;
+use rusoto::s3::{S3Client, ListObjectsRequest, GetObjectRequest, Object};
 use chrono::{Duration, UTC};
-use hyper::client::Client as TlsClient;
+use hyper::client::{Client as HyperClient, ProxyConfig};
+use hyper::client::RedirectPolicy;
+use hyper::net::{HttpConnector, HttpsConnector};
+use hyper_native_tls::NativeTlsClient;
 use url::Url;
 
 use super::sdk::SdkInfo;
@@ -28,7 +32,7 @@ struct FlexibleCredentialsProvider<'a> {
 pub struct S3<'a> {
     config: &'a Config,
     url: Url,
-    client: S3Client<FlexibleCredentialsProvider<'a>, TlsClient>,
+    client: S3Client<FlexibleCredentialsProvider<'a>, HyperClient>,
 }
 
 impl<'a> ProvideAwsCredentials for FlexibleCredentialsProvider<'a> {
@@ -60,6 +64,24 @@ fn unquote_etag(quoted_etag: Option<String>) -> Option<String> {
     })
 }
 
+fn new_hyper_client() -> Result<HyperClient> {
+    let ssl = NativeTlsClient::new().chain_err(||
+        format!("Couldn't create NativeTlsClient."))?;
+    let mut client = if let Ok(proxy_url) = env::var("http_proxy") {
+        let proxy : Url = proxy_url.parse()?;
+        let connector = HttpConnector;
+        let proxy_config = ProxyConfig::new(
+            "http", proxy.host_str().unwrap().to_string(),
+            proxy.port().unwrap(), HttpConnector, ssl);
+        HyperClient::with_proxy_config(proxy_config)
+    } else {
+        let connector = HttpsConnector::new(ssl);
+        HyperClient::with_connector(connector)
+    };
+    client.set_redirect_policy(RedirectPolicy::FollowAll);
+    Ok(client)
+}
+
 impl<'a> S3<'a> {
 
     /// Creates an S3 abstraction from a given config.
@@ -67,8 +89,9 @@ impl<'a> S3<'a> {
         Ok(S3 {
             config: config,
             url: config.get_aws_bucket_url()?,
-            client: S3Client::new(default_tls_client().chain_err(
-                    || "Could not configure TLS layer")?, FlexibleCredentialsProvider {
+            client: S3Client::new(new_hyper_client().chain_err(
+                    || "Could not configure TLS layer")?,
+                    FlexibleCredentialsProvider {
                 config: config,
                 chain_provider: ChainProvider::new(),
             }, config.get_aws_region()?)
@@ -106,11 +129,11 @@ impl<'a> S3<'a> {
 
     /// Requests the list of all compressed SDKs in the bucket
     pub fn list_upstream_sdks(&self) -> Result<Vec<RemoteSdk>> {
-        let mut list_input = ListObjectsRequest::default();
-        list_input.bucket = self.bucket_name().into();
-        list_input.prefix = Some(self.bucket_prefix());
-        let out = self.client.list_objects(&list_input)
-            .chain_err(|| "Failed to fetch s3 files")?;
+        let mut request = ListObjectsRequest::default();
+        request.bucket = self.bucket_name().into();
+        request.prefix = Some(self.bucket_prefix());
+        let out = self.client.list_objects(&request)
+            .chain_err(|| "Failed to fetch SDKs from S3")?;
 
         let mut rv = vec![];
         for obj in out.contents.unwrap_or_else(|| vec![]) {
@@ -120,5 +143,23 @@ impl<'a> S3<'a> {
         }
 
         Ok(rv)
+    }
+
+    /// Downloads a given remote SDK and returns a reader
+    pub fn download_sdk(&self, sdk: &RemoteSdk) -> Result<Box<Read>> {
+        let request = GetObjectRequest {
+            bucket: self.bucket_name().into(),
+            key: format!("{}/{}", self.bucket_prefix()
+                .trim_right_matches('/'), sdk.filename()),
+            response_content_type: Some("application/octet-stream".to_owned()),
+            ..Default::default()
+        };
+
+        let out = self.client.get_object(&request)
+            .chain_err(|| "Failed to fetch SDK from S3")?;
+
+        // XXX: this really should not read into memory but we are currently
+        // restricted by rusoto here. https://github.com/rusoto/rusoto/issues/481
+        Ok(Box::new(Cursor::new(out.body.unwrap_or_else(|| vec![]))))
     }
 }

@@ -22,8 +22,10 @@ extern crate humansize;
 extern crate rusoto;
 extern crate chrono;
 extern crate hyper;
+extern crate hyper_native_tls;
 extern crate url;
 extern crate md5;
+extern crate log;
 extern crate rustc_serialize;
 #[macro_use] extern crate if_chain;
 
