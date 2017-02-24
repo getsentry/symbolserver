@@ -7,13 +7,20 @@ use clap::{App, Arg, SubCommand};
 use super::Result;
 use super::sdk::{Sdk, DumpOptions};
 use super::config::Config;
+use super::memdbstash::MemDbStash;
 
 
 pub fn main() {
     match execute() {
         Ok(()) => {},
         Err(err) => {
+            use std::error::Error;
             println!("error: {}", err);
+            let mut cause = err.cause();
+            while let Some(the_cause) = cause {
+                println!("  caused by: {}", the_cause);
+                cause = the_cause.cause();
+            }
             process::exit(1);
         }
     }
@@ -98,9 +105,7 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
 }
 
 fn sync_symbols_action(config: &Config) -> Result<()> {
-    use super::s3::test;
-    println!("aws access key: {}", config.get_aws_access_key()?);
-    println!("bucket url: {}", config.get_aws_bucket_url()?);
-    test(config)?;
+    let stash = MemDbStash::new(config)?;
+    stash.sync()?;
     Ok(())
 }

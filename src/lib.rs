@@ -21,6 +21,11 @@ extern crate tempfile;
 extern crate humansize;
 extern crate rusoto;
 extern crate chrono;
+extern crate hyper;
+extern crate url;
+extern crate md5;
+extern crate rustc_serialize;
+#[macro_use] extern crate if_chain;
 
 pub use errors::{Result, Error, ErrorKind, ResultExt};
 
@@ -28,6 +33,7 @@ mod macros;
 mod errors;
 mod memdbdump;
 mod memdbtypes;
+mod memdbstash;
 mod utils;
 mod config;
 mod s3;

@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use std::borrow::Cow;
 
 use serde_yaml;
+use url::Url;
+use rusoto::Region;
 
 use super::{Result, ErrorKind};
 
@@ -14,6 +16,7 @@ pub struct AwsConfig {
     access_key: Option<String>,
     secret_key: Option<String>,
     bucket_url: Option<String>,
+    region: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Default)]
@@ -48,35 +51,45 @@ impl Config {
     }
 
     /// Return the AWS access key
-    pub fn get_aws_access_key<'a>(&'a self) -> Result<Cow<'a, str>> {
-        if let Ok(value) = env::var("AWS_ACCESS_KEY") { 
-            Ok(Cow::Owned(value))
-        } else if let Some(key) = self.aws.access_key.as_ref() {
-            Ok(Cow::Borrowed(key))
-        } else {
-            Err(ErrorKind::MissingConfigKey("aws.access_key", Some("AWS_ACCESS_KEY")).into())
-        }
+    pub fn get_aws_access_key<'a>(&'a self) -> Option<&str> {
+        self.aws.access_key.as_ref().map(|x| &**x)
     }
 
     /// Return the AWS secret key
-    pub fn get_aws_secret_key<'a>(&'a self) -> Result<Cow<'a, str>> {
-        if let Ok(value) = env::var("AWS_SECRET_KEY") { 
-            Ok(Cow::Owned(value))
-        } else if let Some(key) = self.aws.secret_key.as_ref() {
-            Ok(Cow::Borrowed(key))
-        } else {
-            Err(ErrorKind::MissingConfigKey("aws.secret_key", Some("AWS_SECRET_KEY")).into())
-        }
+    pub fn get_aws_secret_key<'a>(&'a self) -> Option<&str> {
+        self.aws.secret_key.as_ref().map(|x| &**x)
     }
 
     /// Return the AWS S3 bucket URL
-    pub fn get_aws_bucket_url<'a>(&'a self) -> Result<Cow<'a, str>> {
-        if let Ok(value) = env::var("SYMBOLSERVER_BUCKET_URL") { 
-            Ok(Cow::Owned(value))
-        } else if let Some(url) = self.aws.bucket_url.as_ref() {
-            Ok(Cow::Borrowed(url))
+    pub fn get_aws_bucket_url<'a>(&'a self) -> Result<Url> {
+        let url = if let Some(value) = self.aws.bucket_url.as_ref() {
+            Url::parse(value)?
         } else {
-            Err(ErrorKind::MissingConfigKey("aws.bucket_url", Some("SYMBOLSERVER_BUCKET_URL")).into())
+            return Err(ErrorKind::MissingConfigKey(
+                "aws.bucket_url", None).into());
+        };
+        if url.scheme() != "s3" {
+            return Err(ErrorKind::BadConfigKey(
+                "aws.bucket_url", "The scheme for the bucket URL needs to be s3").into());
+        } else if url.host_str().is_none() {
+            return Err(ErrorKind::BadConfigKey(
+                "aws.bucket_url", "The bucket URL is missing a name").into());
+        }
+        Ok(url)
+    }
+
+    /// Return the AWS region
+    pub fn get_aws_region(&self) -> Result<Region> {
+        match self.aws.region {
+            Some(ref region) => {
+                if let Ok(rv) = region.parse() {
+                    Ok(rv)
+                } else {
+                    Err(ErrorKind::BadConfigKey(
+                        "aws.region", "An unknown AWS region was provided").into())
+                }
+            }
+            None => Ok(Region::UsEast1)
         }
     }
 

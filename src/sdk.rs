@@ -49,7 +49,7 @@ fn get_sdk_name_from_folder(folder: &str) -> Option<&'static str> {
 }
 
 /// Information of the SDK
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SdkInfo {
     name: String,
     version_major: u32,
@@ -82,6 +82,12 @@ impl<'a> fmt::Display for Version {
     }
 }
 
+impl fmt::Display for SdkInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {} ({})", self.name, self.version(), self.build())
+    }
+}
+
 impl SdkInfo {
 
     /// Manually construct an SDK info
@@ -96,6 +102,13 @@ impl SdkInfo {
             version_patchlevel: version_patchlevel,
             build: build.to_string(),
         }
+    }
+
+    /// Load an SDK info from a given filename
+    ///
+    /// If the parse cannot be parsed for an SDK info `None` is returned.
+    pub fn from_filename(filename: &str) -> Option<SdkInfo> {
+        SdkInfo::from_path(Path::new(filename))
     }
 
     /// Load an SDK info from a given path
@@ -116,7 +129,7 @@ impl SdkInfo {
                     ([^-]+)_
                     (\d+)\.(\d+)(?:\.(\d+))?_
                     ([a-zA-Z0-9]+)
-                    (?:\.memdb)?
+                    (?:\.memdbz?)?
                 $
             ").unwrap();
         }

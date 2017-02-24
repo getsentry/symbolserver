@@ -7,7 +7,7 @@ use zip;
 use walkdir;
 use serde_yaml;
 use serde_xml;
-use rusoto;
+use url;
 
 
 error_chain! {
@@ -33,6 +33,10 @@ error_chain! {
             description("failed to load config file")
             display("failed to load config file: {}", err)
         }
+        BadConfigKey(path: &'static str, msg: &'static str) {
+            description("encountered a bad config key")
+            display("config key '{}' has a bad value: {}", path, msg)
+        }
         MissingConfigKey(path: &'static str, env_var: Option<&'static str>) {
             description("encountered a missing config key")
             display("encountered missing config key '{}'{}'.", path, match env_var {
@@ -53,6 +57,6 @@ error_chain! {
         FromUtf8Error(FromUtf8Error);
         YamlError(serde_yaml::Error);
         XmlError(serde_xml::Error);
-        AwsTslError(rusoto::TlsError);
+        UrlParseError(url::ParseError);
     }
 }
