@@ -7,7 +7,7 @@ use clap::{App, Arg, SubCommand};
 use log;
 
 use super::Result;
-use super::sdk::{Sdk, DumpOptions};
+use super::sdk::{Sdk, SdkInfo, DumpOptions};
 use super::config::Config;
 use super::memdbstash::MemDbStash;
 
@@ -108,7 +108,7 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
             println!("");
         }
         let sdk = Sdk::new(&path)?;
-        let mut dst = dst_base.join(&sdk.memdb_filename());
+        let mut dst = dst_base.join(&sdk.info().memdb_filename());
         if compress {
             dst.set_extension("memdbz");
         }
@@ -134,6 +134,10 @@ fn sync_symbols_action(config: &Config) -> Result<()> {
     let stash = MemDbStash::new(config)?;
     let status = stash.get_sync_status()?;
     println!("Sync healthy: {:?} (lag: {})", status.is_healthy(), status.lag());
+
+    let info = SdkInfo::new("iOS", 10, 2, 1, "14D27");
+    let memdb = stash.get_memdb(&info)?;
+    println!("MemDB: {:?}", memdb.info());
 
     stash.sync()?;
     Ok(())

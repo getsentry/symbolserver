@@ -50,7 +50,7 @@ fn get_sdk_name_from_folder(folder: &str) -> Option<&'static str> {
 }
 
 /// Information of the SDK
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize, Hash)]
 pub struct SdkInfo {
     name: String,
     version_major: u32,
@@ -187,6 +187,16 @@ impl SdkInfo {
     /// The build of the SDK
     pub fn build(&self) -> &str {
         &self.build
+    }
+
+    /// Returns the intended memdb filename
+    pub fn memdb_filename(&self) -> String {
+        format!("{}_{}.{}.{}_{}.memdb",
+                self.name,
+                self.version_major,
+                self.version_minor,
+                self.version_patchlevel,
+                self.build)
     }
 }
 
@@ -338,15 +348,5 @@ impl Sdk {
     pub fn dump_memdb<W: Write + Seek>(&self, writer: W, opts: DumpOptions) -> Result<()> {
         dump_memdb(writer, self.info(), opts, self.objects()?)?;
         Ok(())
-    }
-
-    /// Returns the intended memdb filename
-    pub fn memdb_filename(&self) -> String {
-        format!("{}_{}.{}.{}_{}.memdb",
-                self.info.name,
-                self.info.version_major,
-                self.info.version_minor,
-                self.info.version_patchlevel,
-                self.info.build)
     }
 }

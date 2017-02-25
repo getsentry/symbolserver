@@ -9,6 +9,7 @@ use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Values as HashMapValuesIter;
+use std::sync::{Arc, RwLock};
 
 use serde_json;
 use xz2::write::XzDecoder;
@@ -16,13 +17,16 @@ use xz2::write::XzDecoder;
 use super::config::Config;
 use super::sdk::SdkInfo;
 use super::s3::S3;
-use super::{Result, ResultExt};
+use super::memdb::MemDb;
 use super::utils::{ProgressIndicator, copy_with_progress};
+use super::{Result, ResultExt, ErrorKind};
 
 /// The main memdb stash type
 pub struct MemDbStash<'a> {
     path: &'a Path,
     s3: S3<'a>,
+    local_state: RwLock<Option<Arc<SdkSyncState>>>,
+    memdbs: RwLock<HashMap<SdkInfo, Arc<MemDb<'a>>>>,
 }
 
 /// Information about a remotely available SDK
@@ -34,7 +38,7 @@ pub struct RemoteSdk {
     etag: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 struct SdkSyncState {
     sdks: HashMap<String, RemoteSdk>,
 }
@@ -117,6 +121,8 @@ impl<'a> MemDbStash<'a> {
         Ok(MemDbStash {
             path: config.get_symbol_dir()?,
             s3: S3::from_config(config)?,
+            local_state: RwLock::new(None),
+            memdbs: RwLock::new(HashMap::new()),
         })
     }
 
@@ -150,23 +156,36 @@ impl<'a> MemDbStash<'a> {
         Ok(())
     }
 
-    fn get_local_state(&self) -> Result<SdkSyncState> {
-        match self.load_state(&self.get_local_sync_state_filename())? {
-            Some(state) => Ok(state),
-            None => Ok(Default::default()),
+    fn read_local_state(&self) -> Result<SdkSyncState> {
+        let rv = self.load_state(&self.get_local_sync_state_filename())?
+            .unwrap_or_else(|| Default::default());
+        let mut opt = self.local_state.write().unwrap();
+        *opt = Some(Arc::new(rv.clone()));
+        Ok(rv)
+    }
+
+    fn get_local_state(&self) -> Result<Arc<SdkSyncState>> {
+        if let Some(ref arc) = *self.local_state.read().unwrap() {
+            Ok(arc.clone())
+        } else {
+            self.read_local_state()?;
+            Ok(self.local_state.read().unwrap().as_ref().unwrap().clone())
         }
     }
 
-    fn get_remote_state(&self) -> Result<SdkSyncState> {
+    fn save_local_state(&self, new_state: &SdkSyncState) -> Result<()> {
+        self.save_state(new_state, &self.get_local_sync_state_filename())?;
+        let mut opt = self.local_state.write().unwrap();
+        *opt = Some(Arc::new(new_state.clone()));
+        Ok(())
+    }
+
+    fn fetch_remote_state(&self) -> Result<SdkSyncState> {
         let mut sdks = HashMap::new();
         for remote_sdk in self.s3.list_upstream_sdks()? {
             sdks.insert(remote_sdk.local_filename().into(), remote_sdk);
         }
         Ok(SdkSyncState { sdks: sdks })
-    }
-
-    fn save_local_state(&self, new_state: &SdkSyncState) -> Result<()> {
-        self.save_state(new_state, &self.get_local_sync_state_filename())
     }
 
     fn update_sdk(&self, sdk: &RemoteSdk) -> Result<()> {
@@ -194,8 +213,8 @@ impl<'a> MemDbStash<'a> {
 
     /// Checks the local stash against the server
     pub fn get_sync_status(&self) -> Result<SyncStatus> {
-        let local_state = self.get_local_state()?;
-        let remote_state = self.get_remote_state()?;
+        let local_state = self.read_local_state()?;
+        let remote_state = self.fetch_remote_state()?;
 
         let mut remote_total = 0;
         let mut missing = 0;
@@ -221,8 +240,8 @@ impl<'a> MemDbStash<'a> {
 
     /// Synchronize the local stash with the server
     pub fn sync(&self) -> Result<()> {
-        let mut local_state = self.get_local_state()?;
-        let remote_state = self.get_remote_state()?;
+        let mut local_state = self.read_local_state()?;
+        let remote_state = self.fetch_remote_state()?;
 
         let mut to_delete : HashSet<_> = HashSet::from_iter(
             local_state.sdks().map(|x| x.local_filename().to_string()));
@@ -254,5 +273,22 @@ impl<'a> MemDbStash<'a> {
         self.save_local_state(&remote_state)?;
 
         Ok(())
+    }
+
+    /// Looks up an memdb by an SDK info if it's available
+    pub fn get_memdb(&'a self, info: &SdkInfo) -> Result<Arc<MemDb<'a>>> {
+        let local_state = self.get_local_state()?;
+        if let Some(sdk) = local_state.get_sdk(&info.memdb_filename()) {
+            if let Some(arc) = self.memdbs.read().unwrap().get(info) {
+                return Ok(arc.clone());
+            }
+            let memdb = MemDb::from_path(self.path.join(info.memdb_filename()))?;
+            self.memdbs.write().unwrap().insert(info.clone(), Arc::new(memdb));
+            if let Some(arc) = self.memdbs.read().unwrap().get(info) {
+                return Ok(arc.clone());
+            }
+        }
+
+        Err(ErrorKind::UnknownSdk.into())
     }
 }

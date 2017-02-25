@@ -232,7 +232,8 @@ impl<'a> MemDb<'a> {
     #[inline(always)]
     fn object_names(&self) -> Result<&[StoredSlice]> {
         let head = self.backing.header()?;
-        self.backing.get_slice(head.object_names_start as usize, head.object_names_count as usize)
+        self.backing.get_slice(head.object_names_start as usize,
+                               head.object_names_count as usize)
     }
 
     #[inline(always)]
