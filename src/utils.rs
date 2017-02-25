@@ -1,4 +1,5 @@
 use std::io;
+use std::io::{Read, Write};
 use std::sync::Mutex;
 
 use pbr;
@@ -60,15 +61,31 @@ impl ProgressIndicator {
         }
     }
 
-    pub fn disable(&self) {
-        *self.pb.lock().unwrap() = None;
-    }
-
     pub fn add_bar(&self, count: usize) {
         let mut pb = self.pb.lock().unwrap();
         if !pb.is_none() {
             *pb = Some(make_progress_bar(count));
         }
+    }
+}
+
+pub fn copy_with_progress<R: ?Sized, W: ?Sized>(progress: &ProgressIndicator,
+                                                reader: &mut R, writer: &mut W)
+    -> io::Result<u64>
+    where R: Read, W: Write
+{
+    let mut buf = [0; 16384];
+    let mut written = 0;
+    loop {
+        let len = match reader.read(&mut buf) {
+            Ok(0) => return Ok(written),
+            Ok(len) => len,
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        };
+        writer.write_all(&buf[..len])?;
+        written += len as u64;
+        progress.inc(len);
     }
 }
 

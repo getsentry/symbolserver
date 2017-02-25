@@ -3,7 +3,7 @@
 //! A support folder with SDK debug symbols can be processed into a
 //! in-memory database format which is a flat file on the file system
 //! that gets mmaped into the process.
-use std::io::{Read, Write, Seek, SeekFrom, Stdout, ErrorKind as IoErrorKind};
+use std::io::{Write, Seek, SeekFrom};
 use std::fs::File;
 use std::mem;
 use std::slice;
@@ -19,7 +19,7 @@ use super::Result;
 use super::sdk::{SdkInfo, DumpOptions, Objects};
 use super::dsym::{Object, Variant};
 use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
-use super::utils::{file_size_format, ProgressIndicator};
+use super::utils::{file_size_format, ProgressIndicator, copy_with_progress};
 
 
 pub struct MemDbBuilder<W> {
@@ -280,25 +280,14 @@ impl<W: Write + Seek> MemDbBuilder<W> {
 
         // compress if necessary
         if self.options.compress {
-            let mut buf = [0; 4096];
-            let steps = file_size / buf.len() + 1;
-            self.progress.add_bar(steps);
+            self.progress.add_bar(file_size);
             self.progress.set_message("Compressing");
             self.seek(0)?;
             let mut reader = self.tempfile.as_ref().unwrap().borrow_mut();
             let mut writer = self.writer.borrow_mut();
             {
-                let mut writer = XzEncoder::new(&mut *writer, 9);
-                loop {
-                    let len = match reader.read(&mut buf) {
-                        Ok(0) => { break },
-                        Ok(len) => len,
-                        Err(ref e) if e.kind() == IoErrorKind::Interrupted => continue,
-                        Err(e) => return Err(e.into()),
-                    };
-                    self.progress.inc(1);
-                    writer.write_all(&buf[..len])?;
-                }
+                let mut zwriter = XzEncoder::new(&mut *writer, 9);
+                copy_with_progress(&self.progress, &mut *reader, &mut zwriter)?;
             }
             let compressed_file_size = writer.seek(SeekFrom::Current(0))? as usize;
             let pct = (compressed_file_size * 100) / file_size;

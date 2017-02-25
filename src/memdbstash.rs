@@ -12,6 +12,7 @@ use super::config::Config;
 use super::sdk::SdkInfo;
 use super::s3::S3;
 use super::{Result, ResultExt};
+use super::utils::{ProgressIndicator, copy_with_progress};
 
 pub struct MemDbStash<'a> {
     path: &'a Path,
@@ -47,6 +48,10 @@ impl RemoteSdk {
 
     pub fn local_filename(&self) -> &str {
         self.filename.trim_right_matches('z')
+    }
+
+    pub fn size(&self) -> u64 {
+        self.size
     }
 
     pub fn info(&self) -> &SdkInfo {
@@ -115,11 +120,15 @@ impl<'a> MemDbStash<'a> {
     }
 
     fn update_sdk(&self, sdk: &RemoteSdk) -> Result<()> {
-        println!("Updating {}", sdk.info());
+        // XXX: the progress bar here can stall out because we currently
+        // need to buffer the download into memory in the s3 code :(
+        let progress = ProgressIndicator::new(sdk.size() as usize);
+        progress.set_message(&format!("Synchronizing {}", sdk.info()));
         let mut src = self.s3.download_sdk(sdk)?;
         let dst = fs::File::create(self.path.join(sdk.local_filename()))?;
         let mut dst = XzDecoder::new(dst);
-        io::copy(&mut src, &mut dst)?;
+        copy_with_progress(&progress, &mut src, &mut dst)?;
+        progress.finish(&format!("Synchronized {}", sdk.info()));
         Ok(())
     }
 
@@ -139,6 +148,8 @@ impl<'a> MemDbStash<'a> {
             if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
                 if local_sdk != sdk {
                     self.update_sdk(&sdk)?;
+                } else {
+                    println!("  ⸰ Unchanged {}", sdk.info());
                 }
             } else {
                 self.update_sdk(&sdk)?;
