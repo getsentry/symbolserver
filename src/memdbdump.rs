@@ -12,7 +12,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use uuid::Uuid;
-use pbr::ProgressBar;
 use xz2::write::XzEncoder;
 use tempfile::tempfile;
 
@@ -20,7 +19,7 @@ use super::Result;
 use super::sdk::{SdkInfo, DumpOptions, Objects};
 use super::dsym::{Object, Variant};
 use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
-use super::utils::file_size_format;
+use super::utils::{file_size_format, ProgressIndicator};
 
 
 pub struct MemDbBuilder<W> {
@@ -35,24 +34,8 @@ pub struct MemDbBuilder<W> {
     variant_uuids: Vec<IndexedUuid>,
     variants: Vec<Vec<IndexItem>>,
     symbol_count: usize,
-    state: RefCell<DumpState>,
+    progress: ProgressIndicator,
     options: DumpOptions,
-}
-
-pub struct DumpState {
-    pb: Option<ProgressBar<Stdout>>,
-}
-
-fn make_progress_bar(count: usize) -> ProgressBar<Stdout> {
-    let mut pb = ProgressBar::new(count as u64);
-    pb.tick_format("⠇⠋⠙⠸⠴⠦");
-    pb.format("[■□□]");
-    pb.show_tick = true;
-    pb.show_speed = false;
-    pb.show_percent = false;
-    pb.show_counter = false;
-    pb.show_time_left = false;
-    pb
 }
 
 trait WriteSeek : Write + Seek {}
@@ -79,18 +62,16 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             variant_uuids: vec![],
             variants: vec![],
             symbol_count: 0,
-            state: RefCell::new(DumpState {
-                pb: if opts.show_progress_bar {
-                    Some(make_progress_bar(object_count))
-                } else {
-                    None
-                },
-            }),
+            progress: if opts.show_progress_bar {
+                ProgressIndicator::new(object_count)
+            } else {
+                ProgressIndicator::disabled()
+            },
             options: opts,
         };
         let header = MemDbHeader { ..Default::default() };
         rv.write(&header)?;
-        rv.set_progress_message("Initializing");
+        rv.progress.set_message("Initializing");
         Ok(rv)
     }
 
@@ -133,41 +114,6 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         })
     }
 
-    fn inc_progress_bar(&self, step: usize) {
-        if let Some(ref mut pb) = self.state.borrow_mut().pb {
-            pb.add(step as u64);
-        }
-    }
-
-    fn set_progress_message(&self, msg: &str) {
-        if let Some(ref mut pb) = self.state.borrow_mut().pb {
-            pb.message(&format!("  ◦ {: <40}", msg));
-            pb.tick();
-        }
-    }
-
-    fn tick_progress_bar(&self, idx: usize) {
-        if idx % 100 == 0 {
-            if let Some(ref mut pb) = self.state.borrow_mut().pb {
-                pb.tick();
-            }
-        }
-    }
-
-    fn progress_bar_finish(&self, msg: &str) {
-        if let Some(ref mut pb) = self.state.borrow_mut().pb {
-            pb.finish_print(&format!("  ● {}", msg));
-            println!("");
-        }
-    }
-
-    fn new_progress_bar(&self, count: usize) {
-        if !self.options.show_progress_bar {
-            return;
-        }
-        self.state.borrow_mut().pb = Some(make_progress_bar(count));
-    }
-
     fn add_symbol(&mut self, sym: &str) -> usize {
         if let Some(&sym_id) = self.symbols_map.get(sym) {
             return sym_id as usize;
@@ -190,11 +136,11 @@ impl<W: Write + Seek> MemDbBuilder<W> {
 
     pub fn write_object(&mut self, obj: &Object, filename: Option<&str>,
                         offset: usize) -> Result<()> {
-        self.inc_progress_bar(offset);
+        self.progress.inc(offset);
         for variant in obj.variants() {
             let src = variant.name().or(filename).unwrap();
             if let Some(fname) = Path::new(src).file_name().and_then(|x| x.to_str()) {
-                self.set_progress_message(fname);
+                self.progress.set_message(fname);
             }
             self.write_object_variant(&obj, &variant, src)?;
         }
@@ -211,7 +157,9 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         for (idx, (addr, sym)) in symbols.iter().enumerate() {
             let sym_id = self.add_symbol(sym);
             index.push(IndexItem::new(addr, src_id, sym_id));
-            self.tick_progress_bar(idx);
+            if idx % 100 == 0 {
+                self.progress.tick();
+            }
             self.symbol_count += 1;
         }
         index.sort_by_key(|item| item.addr());
@@ -233,7 +181,9 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             let offset = self.tell()?;
             let len = self.write_bytes(string.as_bytes())?;
             slices.push(StoredSlice::new(offset, len, false));
-            self.tick_progress_bar(idx);
+            if idx % 500 == 0 {
+                self.progress.tick();
+            }
         }
         Ok(slices)
     }
@@ -242,23 +192,25 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         *start = self.tell()? as u32;
         for (idx, item) in slices.iter().enumerate() {
             self.write(item)?;
-            self.tick_progress_bar(idx);
+            if idx % 500 == 0 {
+                self.progress.tick();
+            }
         }
         *len = slices.len() as u32;
         Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        self.progress_bar_finish(&format!(
+        self.progress.finish(&format!(
             "Processed {} symbols", self.symbol_count));
-        self.new_progress_bar(3);
+        self.progress.add_bar(3);
 
         let mut header = MemDbHeader { ..Default::default() };
         header.version = 1;
         header.sdk_info.set_from_sdk_info(&self.info);
 
-        self.inc_progress_bar(1);
-        self.set_progress_message("Writing metadata");
+        self.progress.inc(1);
+        self.progress.set_message("Writing metadata");
 
         // start by writing out the index of the variants and record the slices.
         let mut slices = vec![];
@@ -268,7 +220,9 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             for index_item in variant {
                 self.write(index_item)?;
                 ii_idx += 1;
-                self.tick_progress_bar(ii_idx);
+                if ii_idx % 100 == 0 {
+                    self.progress.tick();
+                }
             }
             slices.push(StoredSlice::new(offset, (self.tell()? - offset), false));
         }
@@ -282,7 +236,9 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         self.variant_uuids.sort_by_key(|x| x.uuid);
         for (idx, indexed_uuid) in self.variant_uuids.iter().enumerate() {
             self.write(indexed_uuid)?;
-            self.tick_progress_bar(idx);
+            if idx % 200 == 0 {
+                self.progress.tick();
+            }
         }
 
         // next we write out the name + arch -> uuid index mapping.  We also sort
@@ -291,7 +247,9 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         self.object_uuid_mapping.sort_by_key(|&(_, b)| b);
         for (idx, &(ref tagged_object, _)) in self.object_uuid_mapping.iter().enumerate() {
             self.write_bytes(format!("{}\x00", tagged_object).as_bytes())?;
-            self.tick_progress_bar(idx);
+            if idx % 100 == 0 {
+                self.progress.tick();
+            }
         }
         header.tagged_object_names_end = self.tell()? as u32;
 
@@ -300,16 +258,16 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         self.write_slices(&slices[..], &mut header.object_names_start,
                           &mut header.object_names_count)?;
 
-        self.inc_progress_bar(1);
-        self.set_progress_message("Writing symbols");
+        self.progress.inc(1);
+        self.progress.set_message("Writing symbols");
 
         // now write out all the symbols
         let slices = self.make_string_slices(&self.symbols[..], true)?;
         self.write_slices(&slices[..], &mut header.symbols_start,
                           &mut header.symbols_count)?;
 
-        self.inc_progress_bar(1);
-        self.set_progress_message("Writing headers");
+        self.progress.inc(1);
+        self.progress.set_message("Writing headers");
 
         let file_size = self.tell()?;
 
@@ -317,15 +275,15 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         self.seek(0)?;
         self.write(&header)?;
 
-        self.progress_bar_finish(&format!(
+        self.progress.finish(&format!(
             "Indexed {} variants", self.variant_uuids.len()));
 
         // compress if necessary
         if self.options.compress {
             let mut buf = [0; 4096];
             let steps = file_size / buf.len() + 1;
-            self.new_progress_bar(steps);
-            self.set_progress_message("Compressing");
+            self.progress.add_bar(steps);
+            self.progress.set_message("Compressing");
             self.seek(0)?;
             let mut reader = self.tempfile.as_ref().unwrap().borrow_mut();
             let mut writer = self.writer.borrow_mut();
@@ -338,13 +296,13 @@ impl<W: Write + Seek> MemDbBuilder<W> {
                         Err(ref e) if e.kind() == IoErrorKind::Interrupted => continue,
                         Err(e) => return Err(e.into()),
                     };
-                    self.inc_progress_bar(1);
+                    self.progress.inc(1);
                     writer.write_all(&buf[..len])?;
                 }
             }
             let compressed_file_size = writer.seek(SeekFrom::Current(0))? as usize;
             let pct = (compressed_file_size * 100) / file_size;
-            self.progress_bar_finish(&format!(
+            self.progress.finish(&format!(
                 "Compressed from {} to {} ({}% of original size)",
                 file_size_format(file_size),
                 file_size_format(compressed_file_size),

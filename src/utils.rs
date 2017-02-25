@@ -1,3 +1,78 @@
+use std::io;
+use std::sync::Mutex;
+
+use pbr;
+
+
+pub struct ProgressIndicator {
+    pb: Mutex<Option<pbr::ProgressBar<io::Stdout>>>,
+}
+
+fn make_progress_bar(count: usize) -> pbr::ProgressBar<io::Stdout> {
+    let mut pb = pbr::ProgressBar::new(count as u64);
+    pb.tick_format("⠇⠋⠙⠸⠴⠦");
+    pb.format("[■□□]");
+    pb.show_tick = true;
+    pb.show_speed = false;
+    pb.show_percent = false;
+    pb.show_counter = false;
+    pb.show_time_left = false;
+    pb.message(&format!("{: <44}", ""));
+    pb
+}
+
+impl ProgressIndicator {
+    pub fn new(count: usize) -> ProgressIndicator {
+        ProgressIndicator {
+            pb: Mutex::new(Some(make_progress_bar(count))),
+        }
+    }
+
+    pub fn disabled() -> ProgressIndicator {
+        ProgressIndicator {
+            pb: Mutex::new(None),
+        }
+    }
+
+    pub fn inc(&self, step: usize) {
+        if let Some(ref mut pb) = *self.pb.lock().unwrap() {
+            pb.add(step as u64);
+        }
+    }
+
+    pub fn tick(&self) {
+        if let Some(ref mut pb) = *self.pb.lock().unwrap() {
+            pb.tick();
+        }
+    }
+
+    pub fn set_message(&self, msg: &str) {
+        if let Some(ref mut pb) = *self.pb.lock().unwrap() {
+            pb.message(&format!("  ◦ {: <40}", msg));
+            pb.tick();
+        }
+    }
+
+    pub fn finish(&self, msg: &str) {
+        if let Some(ref mut pb) = *self.pb.lock().unwrap() {
+            pb.finish_print(&format!("  ● {}", msg));
+            println!("");
+        }
+    }
+
+    pub fn disable(&self) {
+        *self.pb.lock().unwrap() = None;
+    }
+
+    pub fn add_bar(&self, count: usize) {
+        let mut pb = self.pb.lock().unwrap();
+        if !pb.is_none() {
+            *pb = Some(make_progress_bar(count));
+        }
+    }
+}
+
+
 pub fn file_size_format(bytes: usize) -> String {
     use humansize::FileSize;
     use humansize::file_size_opts::BINARY;
