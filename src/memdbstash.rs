@@ -130,20 +130,6 @@ impl<'a> MemDbStash<'a> {
         self.path.join("sync.state")
     }
 
-    fn load_state(&self, filename: &Path) -> Result<Option<SdkSyncState>> {
-        match fs::File::open(filename) {
-            Ok(f) => Ok(Some(serde_json::from_reader(f)
-                .chain_err(|| "Parsing error on loading sync state")?)),
-            Err(err) => {
-                if err.kind() == io::ErrorKind::NotFound {
-                    Ok(None)
-                } else {
-                    Err(err).chain_err(|| "Error loading sync state")
-                }
-            }
-        }
-    }
-
     fn save_state(&self, new_state: &SdkSyncState, filename: &Path) -> Result<()> {
         let mut tmp_filename = filename.to_path_buf();
         tmp_filename.set_extension("tempstate");
@@ -157,8 +143,17 @@ impl<'a> MemDbStash<'a> {
     }
 
     fn read_local_state(&self) -> Result<SdkSyncState> {
-        let rv = self.load_state(&self.get_local_sync_state_filename())?
-            .unwrap_or_else(|| Default::default());
+        let rv : SdkSyncState = match fs::File::open(&self.get_local_sync_state_filename()) {
+            Ok(f) => serde_json::from_reader(f)
+                .chain_err(|| "Parsing error on loading sync state")?,
+            Err(err) => {
+                if err.kind() == io::ErrorKind::NotFound {
+                    Default::default()
+                } else {
+                    return Err(err).chain_err(|| "Error loading sync state");
+                }
+            }
+        };
         let mut opt = self.local_state.write().unwrap();
         *opt = Some(Arc::new(rv.clone()));
         Ok(rv)
@@ -275,10 +270,19 @@ impl<'a> MemDbStash<'a> {
         Ok(())
     }
 
-    /// Looks up an memdb by an SDK info if it's available
+    /// Looks up an memdb by an SDK info if it's available.
+    ///
+    /// This returns a memdb wrapped in an arc as internally the system
+    /// might try to unload the memdb if no longer needed.  If the MemDb
+    /// does not exist, a `UnknownSdk` error is returned.
     pub fn get_memdb(&'a self, info: &SdkInfo) -> Result<Arc<MemDb<'a>>> {
         let local_state = self.get_local_state()?;
-        if let Some(sdk) = local_state.get_sdk(&info.memdb_filename()) {
+
+        // make sure we check in the local state first if the SDK exists.
+        // if we go directly to the memdbs array or look at the file system
+        // we might start to consider things that are not available yet or
+        // not available any longer.
+        if local_state.get_sdk(&info.memdb_filename()).is_some() {
             if let Some(arc) = self.memdbs.read().unwrap().get(info) {
                 return Ok(arc.clone());
             }
