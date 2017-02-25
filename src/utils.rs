@@ -1,3 +1,4 @@
+//! Provides various useful utilities.
 use std::io;
 use std::io::{Read, Write};
 use std::sync::Mutex;
@@ -5,6 +6,7 @@ use std::sync::Mutex;
 use pbr;
 
 
+/// A thread safe progress bar
 pub struct ProgressIndicator {
     pb: Mutex<Option<pbr::ProgressBar<io::Stdout>>>,
 }
@@ -23,30 +25,35 @@ fn make_progress_bar(count: usize) -> pbr::ProgressBar<io::Stdout> {
 }
 
 impl ProgressIndicator {
+    /// Creates a new progress bar for a given count
     pub fn new(count: usize) -> ProgressIndicator {
         ProgressIndicator {
             pb: Mutex::new(Some(make_progress_bar(count))),
         }
     }
 
+    /// Creates a dummy progress bar that does nothing
     pub fn disabled() -> ProgressIndicator {
         ProgressIndicator {
             pb: Mutex::new(None),
         }
     }
 
+    /// Increments the progress bar by a step counter
     pub fn inc(&self, step: usize) {
         if let Some(ref mut pb) = *self.pb.lock().unwrap() {
             pb.add(step as u64);
         }
     }
 
+    /// Ticks the progress bar without advancing
     pub fn tick(&self) {
         if let Some(ref mut pb) = *self.pb.lock().unwrap() {
             pb.tick();
         }
     }
 
+    /// Sets the current message
     pub fn set_message(&self, msg: &str) {
         if let Some(ref mut pb) = *self.pb.lock().unwrap() {
             pb.message(&format!("  ◦ {: <40}", msg));
@@ -54,6 +61,7 @@ impl ProgressIndicator {
         }
     }
 
+    /// Marks the progress bar finished and replaces it with a message
     pub fn finish(&self, msg: &str) {
         if let Some(ref mut pb) = *self.pb.lock().unwrap() {
             pb.finish_print(&format!("  ● {}", msg));
@@ -61,6 +69,8 @@ impl ProgressIndicator {
         }
     }
 
+    /// Finishes the current bar and adds a new one.  If the progress bar
+    /// is disabled this does nothing instead.
     pub fn add_bar(&self, count: usize) {
         let mut pb = self.pb.lock().unwrap();
         if !pb.is_none() {
@@ -69,6 +79,7 @@ impl ProgressIndicator {
     }
 }
 
+/// Like ``io::copy`` but advances a progress bar set to bytes.
 pub fn copy_with_progress<R: ?Sized, W: ?Sized>(progress: &ProgressIndicator,
                                                 reader: &mut R, writer: &mut W)
     -> io::Result<u64>
@@ -89,7 +100,7 @@ pub fn copy_with_progress<R: ?Sized, W: ?Sized>(progress: &ProgressIndicator,
     }
 }
 
-
+/// Formats a file size for human readable display.
 pub fn file_size_format(bytes: usize) -> String {
     use humansize::FileSize;
     use humansize::file_size_opts::BINARY;
@@ -98,6 +109,7 @@ pub fn file_size_format(bytes: usize) -> String {
         .unwrap_or_else(|_| bytes.to_string())
 }
 
+/// A quick binary search by key.
 pub fn binsearch_by_key<'a, T, B, F>(slice: &'a [T], item: B, mut f: F) -> Option<&'a T>
     where B: Ord, F: FnMut(&T) -> B
 {

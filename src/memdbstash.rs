@@ -1,3 +1,8 @@
+//! Provide access to locally cached memdb SDKs
+//!
+//! The `MemDbStash` pulls in remote SDKs from an S3 bucket and provides
+//! access to it.  This is used by the symbol server to manage the local
+//! cache and also to refer to memdb files that are mmap'ed in.
 use std::fs;
 use std::io;
 use std::iter::FromIterator;
@@ -14,11 +19,13 @@ use super::s3::S3;
 use super::{Result, ResultExt};
 use super::utils::{ProgressIndicator, copy_with_progress};
 
+/// The main memdb stash type
 pub struct MemDbStash<'a> {
     path: &'a Path,
     s3: S3<'a>,
 }
 
+/// Information about a remotely available SDK
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RemoteSdk {
     filename: String,
@@ -32,6 +39,7 @@ struct SdkSyncState {
     sdks: HashMap<String, RemoteSdk>,
 }
 
+/// Information about the health of the stash sync
 #[derive(Debug)]
 pub struct SyncStatus {
     remote_total: u32,
@@ -40,6 +48,7 @@ pub struct SyncStatus {
 }
 
 impl RemoteSdk {
+    /// Creates a remote SDK object from some information
     pub fn new(filename: String, info: SdkInfo, etag: String, size: u64) -> RemoteSdk {
         RemoteSdk {
             filename: filename,
@@ -49,24 +58,29 @@ impl RemoteSdk {
         }
     }
 
+    /// The remotely visible filename for the SDK
     pub fn filename(&self) -> &str {
         &self.filename
     }
 
+    /// The local filename the SDK has in the stash folder
     pub fn local_filename(&self) -> &str {
         self.filename.trim_right_matches('z')
     }
 
+    /// The size of the SDK in bytes
     pub fn size(&self) -> u64 {
         self.size
     }
 
+    /// Returns the SDK info
     pub fn info(&self) -> &SdkInfo {
         &self.info
     }
 }
 
-pub type SdksIter<'a> = HashMapValuesIter<'a, String, RemoteSdk>;
+/// Iterator over the SDKs
+pub type RemoteSdkIter<'a> = HashMapValuesIter<'a, String, RemoteSdk>;
 
 impl SdkSyncState {
     pub fn get_sdk(&self, filename: &str) -> Option<&RemoteSdk> {
@@ -77,7 +91,7 @@ impl SdkSyncState {
         self.sdks.insert(sdk.local_filename().to_string(), sdk.clone());
     }
 
-    pub fn sdks<'a>(&'a self) -> SdksIter<'a> {
+    pub fn sdks<'a>(&'a self) -> RemoteSdkIter<'a> {
         self.sdks.values()
     }
 }
@@ -98,6 +112,7 @@ impl SyncStatus {
 }
 
 impl<'a> MemDbStash<'a> {
+    /// Opens a stash for a given config.
     pub fn new(config: &'a Config) -> Result<MemDbStash<'a>> {
         Ok(MemDbStash {
             path: config.get_symbol_dir()?,
@@ -177,6 +192,7 @@ impl<'a> MemDbStash<'a> {
         Ok(())
     }
 
+    /// Checks the local stash against the server
     pub fn get_sync_status(&self) -> Result<SyncStatus> {
         let local_state = self.get_local_state()?;
         let remote_state = self.get_remote_state()?;
@@ -203,6 +219,7 @@ impl<'a> MemDbStash<'a> {
         })
     }
 
+    /// Synchronize the local stash with the server
     pub fn sync(&self) -> Result<()> {
         let mut local_state = self.get_local_state()?;
         let remote_state = self.get_remote_state()?;

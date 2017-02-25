@@ -25,6 +25,7 @@ enum ObjectIterSource {
     }
 }
 
+/// Influences how a SDK dump happens
 #[derive(Clone)]
 pub struct DumpOptions {
     pub show_progress_bar: bool,
@@ -69,7 +70,8 @@ pub struct Sdk {
     info: SdkInfo,
 }
 
-pub struct Version(u32, u32, u32);
+/// Helper to format a version into a string
+pub struct Version(pub u32, pub u32, pub u32);
 
 impl<'a> fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -231,6 +233,7 @@ fn strip_archive_file_prefix(path: &str) -> &str {
 }
 
 impl Objects {
+    /// Returns an estimated count of the files in the source
     pub fn file_count(&self) -> usize {
         match self.source {
             ObjectIterSource::Zip { ref archive, .. } => {

@@ -1,3 +1,4 @@
+//! Central error handling for the symbol server
 use std::io;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;

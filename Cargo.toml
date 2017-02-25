@@ -3,6 +3,15 @@ name = "symbolserver"
 version = "0.1.0"
 authors = ["Sentry <daniel.griesser.86@gmail.com>"]
 
+[lib]
+name = "symbolserver"
+path = "src/lib.rs"
+
+[[bin]]
+name = "symbolserver"
+path = "src/main.rs"
+doc = false
+
 [dependencies]
 serde = "^0.9"
 serde_derive = "^0.9"

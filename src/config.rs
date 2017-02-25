@@ -1,3 +1,4 @@
+//! Provides access to the symbolserver config
 use std::env;
 use std::path::Path;
 use std::fs;
@@ -11,13 +12,15 @@ use super::{Result, ErrorKind};
 
 
 #[derive(Deserialize, Debug, Default)]
-pub struct AwsConfig {
+struct AwsConfig {
     access_key: Option<String>,
     secret_key: Option<String>,
     bucket_url: Option<String>,
     region: Option<String>,
 }
 
+/// Central config object that exposes the information from
+/// the symbolserver yaml config.
 #[derive(Deserialize, Debug, Default)]
 pub struct Config {
     #[serde(default)]

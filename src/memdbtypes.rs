@@ -1,3 +1,4 @@
+//! Exposes types related to memdb files
 use std::str::from_utf8;
 
 use uuid::Uuid;
@@ -5,6 +6,7 @@ use uuid::Uuid;
 use super::sdk::SdkInfo;
 
 
+/// The stored memdb file header
 #[repr(C, packed)]
 #[derive(Default, Copy, Clone)]
 pub struct MemDbHeader {
@@ -22,6 +24,7 @@ pub struct MemDbHeader {
     pub symbols_count: u32,
 }
 
+/// Packed SDK information
 #[repr(C, packed)]
 #[derive(Default, Copy, Clone)]
 pub struct PackedSdkInfo {
@@ -32,18 +35,21 @@ pub struct PackedSdkInfo {
     pub build: [u8; 10],
 }
 
+/// A stored slice that points to a memory region in the memdb file
 #[repr(C, packed)]
 pub struct StoredSlice {
     pub offset: u32,
     pub len: u32,
 }
 
+/// For the UUID index this points to a variant by index
 #[repr(C, packed)]
 pub struct IndexedUuid {
     pub uuid: Uuid,
     pub idx: u16,
 }
 
+/// A symbol in the index
 #[repr(C, packed)]
 #[derive(Debug)]
 pub struct IndexItem {
@@ -103,6 +109,7 @@ impl IndexedUuid {
 
 impl StoredSlice {
 
+    /// Creates a new stored slice
     pub fn new(offset: usize, mut len: usize, is_compressed: bool) -> StoredSlice {
         if is_compressed {
             len |= 0x80000000;
@@ -113,20 +120,24 @@ impl StoredSlice {
         }
     }
 
+    /// Returns the offset of the stored slice as bytes
     pub fn offset(&self) -> usize {
         self.offset as usize
     }
 
+    /// Returns the length of the stored slice
     pub fn len(&self) -> usize {
         (self.len as usize) & 0x7fffffff
     }
 
+    /// Indicates that the string is compressed (currently not used)
     pub fn is_compressed(&self) -> bool {
         self.len >> 31 != 0
     }
 }
 
 impl IndexItem {
+    /// Creates a new indexed symbol in the index
     pub fn new(addr: u64, src_id: usize, sym_id: usize) -> IndexItem {
         IndexItem {
             addr_low: (addr & 0xffffffff) as u32,
@@ -136,14 +147,17 @@ impl IndexItem {
         }
     }
 
+    /// The address of the symbol
     pub fn addr(&self) -> u64 {
         ((self.addr_high as u64) << 32) | (self.addr_low as u64)
     }
 
+    /// The ID of the source variant
     pub fn src_id(&self) -> usize {
         self.src_id as usize
     }
 
+    /// The ID of the symbol
     pub fn sym_id(&self) -> usize {
         self.sym_id as usize
     }

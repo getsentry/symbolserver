@@ -1,7 +1,4 @@
-/// This implements S3 sync for the symbolserver.
-///
-/// Currently this uses aws-sdk-rust.  The plan is to eventually switch this to
-/// rusoto but that does not support streaming from S3 yet.
+//! This implements S3 sync for the symbolserver.
 
 use std::result::Result as StdResult;
 use std::env;
@@ -141,7 +138,10 @@ impl<'a> S3<'a> {
         Ok(rv)
     }
 
-    /// Downloads a given remote SDK and returns a reader
+    /// Downloads a given remote SDK and returns a reader to the
+    /// bytes in the SDK.
+    ///
+    /// The files downloaded are XZ compressed.
     pub fn download_sdk(&self, sdk: &RemoteSdk) -> Result<Box<Read>> {
         let request = GetObjectRequest {
             bucket: self.bucket_name().into(),

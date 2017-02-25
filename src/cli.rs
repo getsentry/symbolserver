@@ -1,3 +1,4 @@
+//! This exposes the command line interface that the binary uses
 use std::fs;
 use std::env;
 use std::process;
@@ -33,6 +34,7 @@ fn setup_logging() {
     }).unwrap();
 }
 
+/// Main entry point that starts the CLI
 pub fn main() {
     setup_logging();
     match execute() {
