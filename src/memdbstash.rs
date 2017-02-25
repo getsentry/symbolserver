@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Values as HashMapValuesIter;
 
 use serde_json;
@@ -28,8 +28,15 @@ pub struct RemoteSdk {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-struct SyncState {
+struct SdkSyncState {
     sdks: HashMap<String, RemoteSdk>,
+}
+
+#[derive(Debug)]
+pub struct SyncStatus {
+    remote_total: u32,
+    missing: u32,
+    different: u32,
 }
 
 impl RemoteSdk {
@@ -61,13 +68,32 @@ impl RemoteSdk {
 
 pub type SdksIter<'a> = HashMapValuesIter<'a, String, RemoteSdk>;
 
-impl SyncState {
+impl SdkSyncState {
     pub fn get_sdk(&self, filename: &str) -> Option<&RemoteSdk> {
         self.sdks.get(filename)
     }
 
+    pub fn update_sdk(&mut self, sdk: &RemoteSdk) {
+        self.sdks.insert(sdk.local_filename().to_string(), sdk.clone());
+    }
+
     pub fn sdks<'a>(&'a self) -> SdksIter<'a> {
         self.sdks.values()
+    }
+}
+
+impl SyncStatus {
+
+    /// Returns the lag (number of SDKs behind upstream)
+    pub fn lag(&self) -> u32 {
+        self.missing + self.different
+    }
+
+    /// Returns true if the local sync is still considered healthy
+    pub fn is_healthy(&self) -> bool {
+        let total = self.remote_total as f32;
+        let lag = self.lag() as f32;
+        lag / total < 0.10
     }
 }
 
@@ -79,18 +105,17 @@ impl<'a> MemDbStash<'a> {
         })
     }
 
-    fn get_sync_state_filename(&self) -> PathBuf {
+    fn get_local_sync_state_filename(&self) -> PathBuf {
         self.path.join("sync.state")
     }
 
-    fn get_local_state(&self) -> Result<SyncState> {
-        let filename = self.get_sync_state_filename();
+    fn load_state(&self, filename: &Path) -> Result<Option<SdkSyncState>> {
         match fs::File::open(filename) {
-            Ok(f) => Ok(serde_json::from_reader(f)
-                .chain_err(|| "Parsing error on loading sync state")?),
+            Ok(f) => Ok(Some(serde_json::from_reader(f)
+                .chain_err(|| "Parsing error on loading sync state")?)),
             Err(err) => {
                 if err.kind() == io::ErrorKind::NotFound {
-                    Ok(Default::default())
+                    Ok(None)
                 } else {
                     Err(err).chain_err(|| "Error loading sync state")
                 }
@@ -98,9 +123,8 @@ impl<'a> MemDbStash<'a> {
         }
     }
 
-    fn save_local_state(&self, new_state: &SyncState) -> Result<()> {
-        let filename = self.get_sync_state_filename();
-        let mut tmp_filename = filename.clone();
+    fn save_state(&self, new_state: &SdkSyncState, filename: &Path) -> Result<()> {
+        let mut tmp_filename = filename.to_path_buf();
         tmp_filename.set_extension("tempstate");
         {
             let mut f = fs::File::create(&tmp_filename)?;
@@ -111,12 +135,23 @@ impl<'a> MemDbStash<'a> {
         Ok(())
     }
 
-    fn get_remote_state(&self) -> Result<SyncState> {
+    fn get_local_state(&self) -> Result<SdkSyncState> {
+        match self.load_state(&self.get_local_sync_state_filename())? {
+            Some(state) => Ok(state),
+            None => Ok(Default::default()),
+        }
+    }
+
+    fn get_remote_state(&self) -> Result<SdkSyncState> {
         let mut sdks = HashMap::new();
         for remote_sdk in self.s3.list_upstream_sdks()? {
             sdks.insert(remote_sdk.local_filename().into(), remote_sdk);
         }
-        Ok(SyncState { sdks: sdks })
+        Ok(SdkSyncState { sdks: sdks })
+    }
+
+    fn save_local_state(&self, new_state: &SdkSyncState) -> Result<()> {
+        self.save_state(new_state, &self.get_local_sync_state_filename())
     }
 
     fn update_sdk(&self, sdk: &RemoteSdk) -> Result<()> {
@@ -134,15 +169,46 @@ impl<'a> MemDbStash<'a> {
 
     fn remove_sdk(&self, sdk: &RemoteSdk) -> Result<()> {
         println!("Deleting {}", sdk.info());
-        fs::remove_file(self.path.join(sdk.local_filename()))?;
+        if let Err(err) = fs::remove_file(self.path.join(sdk.local_filename())) {
+            if err.kind() != io::ErrorKind::NotFound {
+                return Err(err.into());
+            }
+        }
         Ok(())
     }
 
-    pub fn sync(&self) -> Result<()> {
+    pub fn get_sync_status(&self) -> Result<SyncStatus> {
         let local_state = self.get_local_state()?;
         let remote_state = self.get_remote_state()?;
-        let mut to_delete : HashMap<_, _> = HashMap::from_iter(
-            local_state.sdks().map(|x| (x.local_filename(), x)));
+
+        let mut remote_total = 0;
+        let mut missing = 0;
+        let mut different = 0;
+
+        for sdk in remote_state.sdks() {
+            if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
+                if local_sdk != sdk {
+                    different += 1;
+                }
+            } else {
+                missing += 1;
+            }
+            remote_total += 1;
+        }
+
+        Ok(SyncStatus {
+            remote_total: remote_total as u32,
+            missing: missing as u32,
+            different: different as u32,
+        })
+    }
+
+    pub fn sync(&self) -> Result<()> {
+        let mut local_state = self.get_local_state()?;
+        let remote_state = self.get_remote_state()?;
+
+        let mut to_delete : HashSet<_> = HashSet::from_iter(
+            local_state.sdks().map(|x| x.local_filename().to_string()));
 
         for sdk in remote_state.sdks() {
             if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
@@ -155,13 +221,19 @@ impl<'a> MemDbStash<'a> {
                 self.update_sdk(&sdk)?;
             }
             to_delete.remove(sdk.local_filename());
+            local_state.update_sdk(&sdk);
+            self.save_local_state(&local_state)?;
         }
 
-        for sdk in to_delete.values() {
-            self.remove_sdk(sdk)?;
+        for local_filename in to_delete.iter() {
+            if let Some(sdk) = local_state.get_sdk(local_filename) {
+                self.remove_sdk(sdk)?;
+            }
         }
 
         println!("Done synching");
+
+        // if we get this far, the remote state is indeed the local state.
         self.save_local_state(&remote_state)?;
 
         Ok(())

@@ -130,6 +130,9 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
 
 fn sync_symbols_action(config: &Config) -> Result<()> {
     let stash = MemDbStash::new(config)?;
+    let status = stash.get_sync_status()?;
+    println!("Sync healthy: {:?} (lag: {})", status.is_healthy(), status.lag());
+
     stash.sync()?;
     Ok(())
 }
