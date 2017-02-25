@@ -135,10 +135,11 @@ fn sync_symbols_action(config: &Config) -> Result<()> {
     let status = stash.get_sync_status()?;
     println!("Sync healthy: {:?} (lag: {})", status.is_healthy(), status.lag());
 
+    stash.sync()?;
+
     let info = SdkInfo::new("iOS", 10, 2, 1, "14D27");
     let memdb = stash.get_memdb(&info)?;
     println!("MemDB: {:?}", memdb.info());
 
-    stash.sync()?;
     Ok(())
 }
