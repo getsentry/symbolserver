@@ -3,7 +3,6 @@ use std::env;
 use std::path::Path;
 use std::fs;
 use std::path::PathBuf;
-use std::net::SocketAddr;
 
 use serde_yaml;
 use url::Url;
