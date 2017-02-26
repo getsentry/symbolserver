@@ -92,10 +92,11 @@ impl ApiServer {
                 Ok(result) => result,
                 Err(err) => {
                     // XXX: better logging here
-                    println!("INTERNAL SERVER ERROR: {}", err);
+                    println!("INTERNAL SERVER ERROR: {}", &err);
                     ApiResponse::new(ApiError {
                         ty: "internal_server_error".into(),
-                        message: "The server failed with an internal error".into()
+                        message: format!("The server failed with an internal error: {}",
+                            &err),
                     }, StatusCode::InternalServerError).unwrap()
                 }
             }.write_to_response(resp).unwrap();
