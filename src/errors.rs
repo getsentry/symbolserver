@@ -9,6 +9,7 @@ use walkdir;
 use serde_yaml;
 use serde_xml;
 use url;
+use hyper;
 
 
 error_chain! {
@@ -59,5 +60,6 @@ error_chain! {
         YamlError(serde_yaml::Error);
         XmlError(serde_xml::Error);
         UrlParseError(url::ParseError);
+        WebError(hyper::Error);
     }
 }

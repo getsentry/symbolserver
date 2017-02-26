@@ -3,6 +3,7 @@ use std::env;
 use std::path::Path;
 use std::fs;
 use std::path::PathBuf;
+use std::net::SocketAddr;
 
 use serde_yaml;
 use url::Url;
@@ -19,12 +20,20 @@ struct AwsConfig {
     region: Option<String>,
 }
 
+#[derive(Deserialize, Debug, Default)]
+struct HttpConfig {
+    host: Option<String>,
+    port: Option<u16>,
+}
+
 /// Central config object that exposes the information from
 /// the symbolserver yaml config.
 #[derive(Deserialize, Debug, Default)]
 pub struct Config {
     #[serde(default)]
     aws: AwsConfig,
+    #[serde(default)]
+    http: HttpConfig,
     symbol_dir: Option<PathBuf>,
 }
 
@@ -102,5 +111,12 @@ impl Config {
         } else {
             Err(ErrorKind::MissingConfigKey("symbol_dir", None).into())
         }
+    }
+
+    /// Return the bind target for the http server
+    pub fn get_http_socket_addr(&self) -> Result<(&str, u16)> {
+        let host = self.http.host.as_ref().map(|x| x.as_str()).unwrap_or("127.0.0.1");
+        let port = self.http.port.unwrap_or(3000);
+        Ok((host, port))
     }
 }

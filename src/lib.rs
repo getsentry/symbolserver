@@ -27,6 +27,9 @@ extern crate url;
 extern crate md5;
 extern crate log;
 extern crate rustc_serialize;
+extern crate iron;
+extern crate router;
+extern crate persistent;
 #[macro_use] extern crate if_chain;
 
 pub use errors::{Result, Error, ErrorKind, ResultExt};
@@ -43,3 +46,4 @@ pub mod cli;
 pub mod dsym;
 pub mod sdk;
 pub mod memdb;
+pub mod apiserver;

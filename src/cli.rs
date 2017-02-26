@@ -10,6 +10,7 @@ use super::Result;
 use super::sdk::{Sdk, SdkInfo, DumpOptions};
 use super::config::Config;
 use super::memdbstash::MemDbStash;
+use super::apiserver::ApiServer;
 
 struct SimpleLogger;
 
@@ -63,6 +64,8 @@ fn execute() -> Result<()> {
         .subcommand(
             SubCommand::with_name("sync-symbols"))
         .subcommand(
+            SubCommand::with_name("run"))
+        .subcommand(
             SubCommand::with_name("convert-sdk")
                 .about("Converts an SDK into a memdb file")
                 .arg(Arg::with_name("path")
@@ -91,6 +94,8 @@ fn execute() -> Result<()> {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),
                            matches.value_of("output-path").unwrap_or("."),
                            matches.is_present("compress"))?;
+    } else if let Some(_matches) = matches.subcommand_matches("run") {
+        run_action(&cfg)?;
     } else if let Some(_matches) = matches.subcommand_matches("sync-symbols") {
         sync_symbols_action(&cfg)?;
     }
@@ -141,5 +146,11 @@ fn sync_symbols_action(config: &Config) -> Result<()> {
     let memdb = stash.get_memdb(&info)?;
     println!("MemDB: {:?}", memdb.info());
 
+    Ok(())
+}
+
+fn run_action(config: &Config) -> Result<()> {
+    let api_server = ApiServer::new(config)?;
+    api_server.run()?;
     Ok(())
 }
