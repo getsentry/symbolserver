@@ -23,64 +23,64 @@ use super::{Result, ResultExt, ErrorKind};
 
 /// The main memdb stash type
 pub struct MemDbStash {
-path: PathBuf,
-s3: S3,
-local_state: RwLock<Option<Arc<SdkSyncState>>>,
-memdbs: RwLock<HashMap<SdkInfo, Arc<MemDb<'static>>>>,
+    path: PathBuf,
+    s3: S3,
+    local_state: RwLock<Option<Arc<SdkSyncState>>>,
+    memdbs: RwLock<HashMap<SdkInfo, Arc<MemDb<'static>>>>,
 }
 
 /// Information about a remotely available SDK
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RemoteSdk {
-filename: String,
-info: SdkInfo,
-size: u64,
-etag: String,
+    filename: String,
+    info: SdkInfo,
+    size: u64,
+    etag: String,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 struct SdkSyncState {
-sdks: HashMap<String, RemoteSdk>,
+    sdks: HashMap<String, RemoteSdk>,
 }
 
 /// Information about the health of the stash sync
 #[derive(Debug)]
 pub struct SyncStatus {
-remote_total: u32,
-missing: u32,
-different: u32,
+    remote_total: u32,
+    missing: u32,
+    different: u32,
 }
 
 impl RemoteSdk {
-/// Creates a remote SDK object from some information
-pub fn new(filename: String, info: SdkInfo, etag: String, size: u64) -> RemoteSdk {
-    RemoteSdk {
-        filename: filename,
-        info: info,
-        etag: etag,
-        size: size,
+    /// Creates a remote SDK object from some information
+    pub fn new(filename: String, info: SdkInfo, etag: String, size: u64) -> RemoteSdk {
+        RemoteSdk {
+            filename: filename,
+            info: info,
+            etag: etag,
+            size: size,
+        }
     }
-}
 
-/// The remotely visible filename for the SDK
-pub fn filename(&self) -> &str {
-    &self.filename
-}
+    /// The remotely visible filename for the SDK
+    pub fn filename(&self) -> &str {
+        &self.filename
+    }
 
-/// The local filename the SDK has in the stash folder
-pub fn local_filename(&self) -> &str {
-    self.filename.trim_right_matches('z')
-}
+    /// The local filename the SDK has in the stash folder
+    pub fn local_filename(&self) -> &str {
+        self.filename.trim_right_matches('z')
+    }
 
-/// The size of the SDK in bytes
-pub fn size(&self) -> u64 {
-    self.size
-}
+    /// The size of the SDK in bytes
+    pub fn size(&self) -> u64 {
+        self.size
+    }
 
-/// Returns the SDK info
-pub fn info(&self) -> &SdkInfo {
-    &self.info
-}
+    /// Returns the SDK info
+    pub fn info(&self) -> &SdkInfo {
+        &self.info
+    }
 }
 
 /// Iterator over the SDKs
@@ -275,7 +275,7 @@ impl MemDbStash {
     /// This returns a memdb wrapped in an arc as internally the system
     /// might try to unload the memdb if no longer needed.  If the MemDb
     /// does not exist, a `UnknownSdk` error is returned.
-    pub fn get_memdb<'a>(&'a self, info: &SdkInfo) -> Result<Arc<MemDb<'a>>> {
+    pub fn get_memdb(&self, info: &SdkInfo) -> Result<Arc<MemDb<'static>>> {
         let local_state = self.get_local_state()?;
 
         // make sure we check in the local state first if the SDK exists.
