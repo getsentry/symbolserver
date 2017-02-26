@@ -43,4 +43,4 @@ pub mod cli;
 pub mod dsym;
 pub mod sdk;
 pub mod memdb;
-pub mod apiserver;
+pub mod api;

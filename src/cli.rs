@@ -10,7 +10,7 @@ use super::Result;
 use super::sdk::{Sdk, SdkInfo, DumpOptions};
 use super::config::Config;
 use super::memdbstash::MemDbStash;
-use super::apiserver::ApiServer;
+use super::api::server::ApiServer;
 
 struct SimpleLogger;
 
