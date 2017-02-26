@@ -62,9 +62,11 @@ fn execute() -> Result<()> {
              .value_name("FILE")
              .help("The path to the config file"))
         .subcommand(
-            SubCommand::with_name("sync-symbols"))
+            SubCommand::with_name("sync-symbols")
+                .about("Updates symbols from S3"))
         .subcommand(
-            SubCommand::with_name("run"))
+            SubCommand::with_name("run")
+                .about("Runs the symbol server"))
         .subcommand(
             SubCommand::with_name("convert-sdk")
                 .about("Converts an SDK into a memdb file")
