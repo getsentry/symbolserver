@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 use hyper::server::{Server, Request, Response};
 use hyper::uri::RequestUri;
 use chrono::{DateTime, UTC};
+use serde::Deserialize;
+use serde_json;
 
 use super::super::config::Config;
 use super::super::memdbstash::MemDbStash;
@@ -77,6 +79,13 @@ impl ApiServer {
         })?;
         Ok(())
     }
+}
+
+pub fn load_request_data<D: Deserialize>(req: &mut Request) -> Result<D> {
+    Ok(match serde_json::from_reader(req) {
+        Ok(data) => data,
+        Err(err) => { return Err(ApiError::BadJson(Box::new(err)).into()); }
+    })
 }
 
 fn bad_request(_: &ServerContext, _: Request) -> Result<ApiResponse>

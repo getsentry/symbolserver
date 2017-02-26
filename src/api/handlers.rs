@@ -1,11 +1,11 @@
 use hyper::server::Request;
 use hyper::status::StatusCode;
 use hyper::method::Method;
-use serde_json;
 use uuid::Uuid;
 
 use super::super::Result;
-use super::server::ServerContext;
+use super::super::sdk::SdkInfo;
+use super::server::{ServerContext, load_request_data};
 use super::types::{ApiResponse, ApiError};
 
 #[derive(Deserialize)]
@@ -43,9 +43,7 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
     if req.method != Method::Post {
         return Err(ApiError::MethodNotAllowed.into());
     }
-    let data : SymbolLookupRequest = match serde_json::from_reader(&mut req) {
-        Ok(data) => data,
-        Err(err) => { return Err(ApiError::BadJson(Box::new(err)).into()); }
-    };
+    let data : SymbolLookupRequest = load_request_data(&mut req)?;
+
     Err(ApiError::NotFound.into())
 }
