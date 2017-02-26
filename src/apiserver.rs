@@ -10,21 +10,21 @@ use super::memdbstash::MemDbStash;
 use super::Result;
 
 
-struct ServerContext<'a> {
-    config: &'a Config,
-    stash: MemDbStash<'a>,
+struct ServerContext {
+    config: Config,
+    stash: MemDbStash,
 }
 
-pub struct ApiServer<'a> {
-    ctx: ServerContext<'a>,
+pub struct ApiServer {
+    ctx: ServerContext,
 }
 
 
-impl<'a> ApiServer<'a> {
-    pub fn new(config: &'a Config) -> Result<ApiServer<'a>> {
+impl ApiServer {
+    pub fn new(config: &Config) -> Result<ApiServer> {
         Ok(ApiServer {
             ctx: ServerContext {
-                config: config,
+                config: config.clone(),
                 stash: MemDbStash::new(config)?,
             },
         })

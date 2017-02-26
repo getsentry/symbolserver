@@ -19,28 +19,31 @@ use super::config::Config;
 use super::memdbstash::RemoteSdk;
 use super::{Result, ResultExt};
 
-struct FlexibleCredentialsProvider<'a> {
+struct FlexibleCredentialsProvider {
     chain_provider: ChainProvider,
-    config: &'a Config,
+    access_key: Option<String>,
+    secret_key: Option<String>,
 }
 
 /// Abstracts over S3 operations
-pub struct S3<'a> {
+pub struct S3 {
     url: Url,
-    client: S3Client<FlexibleCredentialsProvider<'a>, HyperClient>,
+    client: S3Client<FlexibleCredentialsProvider, HyperClient>,
 }
 
-impl<'a> ProvideAwsCredentials for FlexibleCredentialsProvider<'a> {
+impl ProvideAwsCredentials for FlexibleCredentialsProvider {
 
     fn credentials(&self) -> StdResult<AwsCredentials, CredentialsError> {
-        let key = self.config.get_aws_access_key();
-        let secret = self.config.get_aws_secret_key();
-        if key.is_some() && secret.is_some() {
-            Ok(AwsCredentials::new(key.unwrap().to_string(),
-                                   secret.unwrap().to_string(),
-                                   None, UTC::now() + Duration::seconds(3600)))
-        } else {
-            self.chain_provider.credentials()
+        if_chain! {
+            if let Some(ref access_key) = self.access_key;
+            if let Some(ref secret_key) = self.secret_key;
+            then {
+                Ok(AwsCredentials::new(access_key.to_string(),
+                                       secret_key.to_string(),
+                                       None, UTC::now() + Duration::seconds(3600)))
+            } else {
+                self.chain_provider.credentials()
+            }
         }
     }
 }
@@ -76,17 +79,18 @@ fn new_hyper_client() -> Result<HyperClient> {
     Ok(client)
 }
 
-impl<'a> S3<'a> {
+impl S3 {
 
     /// Creates an S3 abstraction from a given config.
-    pub fn from_config(config: &'a Config) -> Result<S3<'a>> {
+    pub fn from_config(config: &Config) -> Result<S3> {
         Ok(S3 {
             url: config.get_aws_bucket_url()?,
             client: S3Client::new(new_hyper_client().chain_err(
                     || "Could not configure TLS layer")?,
                     FlexibleCredentialsProvider {
-                config: config,
                 chain_provider: ChainProvider::new(),
+                access_key: config.get_aws_access_key().map(|x| x.to_string()),
+                secret_key: config.get_aws_secret_key().map(|x| x.to_string()),
             }, config.get_aws_region()?)
         })
     }

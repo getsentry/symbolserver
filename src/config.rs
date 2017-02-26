@@ -12,7 +12,7 @@ use rusoto::Region;
 use super::{Result, ErrorKind};
 
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 struct AwsConfig {
     access_key: Option<String>,
     secret_key: Option<String>,
@@ -20,7 +20,7 @@ struct AwsConfig {
     region: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 struct HttpConfig {
     host: Option<String>,
     port: Option<u16>,
@@ -28,7 +28,7 @@ struct HttpConfig {
 
 /// Central config object that exposes the information from
 /// the symbolserver yaml config.
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct Config {
     #[serde(default)]
     aws: AwsConfig,
