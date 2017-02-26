@@ -3,6 +3,7 @@ use std::sync::Arc;
 use hyper::server::{Server, Request, Response};
 use hyper::status::StatusCode;
 use hyper::method::Method;
+use hyper::header::ContentType;
 use hyper::uri::RequestUri;
 use serde_json;
 use serde::Serialize;
@@ -72,6 +73,7 @@ impl ApiServer {
 fn respond<T: Serialize>(mut resp: Response, obj: T, status: StatusCode) -> Result<()> {
     *resp.status_mut() = status;
     let mut body : Vec<u8> = vec![];
+    resp.headers_mut().set(ContentType::json());
     serde_json::to_writer(&mut body, &obj)
         .chain_err(|| "Failed to serialize response for client")?;
     resp.send(&body[..])?;
