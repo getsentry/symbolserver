@@ -23,10 +23,10 @@ use super::{Result, ResultExt, ErrorKind};
 
 /// The main memdb stash type
 pub struct MemDbStash<'a> {
-    path: &'a Path,
+    path: PathBuf,
     s3: S3<'a>,
     local_state: RwLock<Option<Arc<SdkSyncState>>>,
-    memdbs: RwLock<HashMap<SdkInfo, Arc<MemDb<'a>>>>,
+    memdbs: RwLock<HashMap<SdkInfo, Arc<MemDb<'static>>>>,
 }
 
 /// Information about a remotely available SDK
@@ -119,7 +119,7 @@ impl<'a> MemDbStash<'a> {
     /// Opens a stash for a given config.
     pub fn new(config: &'a Config) -> Result<MemDbStash<'a>> {
         Ok(MemDbStash {
-            path: config.get_symbol_dir()?,
+            path: config.get_symbol_dir()?.to_path_buf(),
             s3: S3::from_config(config)?,
             local_state: RwLock::new(None),
             memdbs: RwLock::new(HashMap::new()),

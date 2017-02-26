@@ -39,6 +39,9 @@ md5 = "^0.3.3"
 log = "^0.3.6"
 rustc-serialize = "0.3.22"
 if_chain = "^0.1.2"
+iron = "^0.5.1"
+router = "^0.5.1"
+persistent = "^0.3.0"
 # We use our own version for now because of
 #   https://github.com/rusoto/rusoto/pull/569
 rusoto = { git = "https://github.com/mitsuhiko/rusoto", features = ["s3"] }
