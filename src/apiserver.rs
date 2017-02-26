@@ -12,8 +12,8 @@ use super::memdbstash::MemDbStash;
 use super::{Result, ResultExt};
 
 struct ServerContext {
-    config: Config,
-    stash: MemDbStash,
+    pub config: Config,
+    pub stash: MemDbStash,
 }
 
 pub struct ApiServer {
@@ -25,10 +25,15 @@ type Handler = fn(&ServerContext, Request, Response);
 #[derive(Serialize)]
 struct ApiError {
     #[serde(rename="type")]
-    ty: String,
-    message: String,
+    pub ty: String,
+    pub message: String,
 }
 
+#[derive(Serialize)]
+struct HealthCheckResult {
+    is_healthy: bool,
+    sync_lag: u32,
+}
 
 impl ApiServer {
     pub fn new(config: &Config) -> Result<ApiServer> {
@@ -78,8 +83,16 @@ fn respond<T: Serialize>(mut resp: Response, obj: T, status: StatusCode) -> Resu
 fn healthcheck_handler(ctx: &ServerContext, _: Request, mut resp: Response)
     -> Result<()>
 {
-    *resp.status_mut() = StatusCode::Ok;
-    Ok(())
+    // TODO: cache this
+    let state = ctx.stash.get_sync_status()?;
+    respond(resp, HealthCheckResult {
+        is_healthy: state.is_healthy(),
+        sync_lag: state.lag(),
+    }, if state.is_healthy() {
+        StatusCode::Ok
+    } else {
+        StatusCode::ServiceUnavailable
+    })
 }
 
 fn not_found_handler(_: &ServerContext, _: Request, resp: Response)
@@ -94,13 +107,17 @@ fn not_found_handler(_: &ServerContext, _: Request, resp: Response)
 fn bad_request_handler(_: &ServerContext, _: Request, mut resp: Response)
     -> Result<()>
 {
-    *resp.status_mut() = StatusCode::BadRequest;
-    Ok(())
+    respond(resp, ApiError {
+        ty: "bad_request".into(),
+        message: "The request could not be handled".into()
+    }, StatusCode::BadRequest)
 }
 
 fn method_not_allowed_handler(_: &ServerContext, _: Request, mut resp: Response)
     -> Result<()>
 {
-    *resp.status_mut() = StatusCode::MethodNotAllowed;
-    Ok(())
+    respond(resp, ApiError {
+        ty: "method_not_allowed".into(),
+        message: "The server cannot handle this method".into()
+    }, StatusCode::MethodNotAllowed)
 }
