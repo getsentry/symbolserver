@@ -21,6 +21,11 @@ pub struct ApiServer {
     ctx: Arc<ServerContext>,
 }
 
+pub struct ApiResponse {
+    body: Vec<u8>,
+    status: StatusCode,
+}
+
 #[derive(Serialize)]
 struct ApiError {
     #[serde(rename="type")]
@@ -32,6 +37,25 @@ struct ApiError {
 struct HealthCheckResult {
     is_healthy: bool,
     sync_lag: u32,
+}
+
+impl ApiResponse {
+    pub fn new<S: Serialize>(data: S, status: StatusCode) -> Result<ApiResponse> {
+        let mut body : Vec<u8> = vec![];
+        serde_json::to_writer(&mut body, &data)
+            .chain_err(|| "Failed to serialize response for client")?;
+        Ok(ApiResponse {
+            body: body,
+            status: status,
+        })
+    }
+
+    pub fn write_to_response(&self, mut resp: Response) -> Result<()> {
+        *resp.status_mut() = self.status;
+        resp.headers_mut().set(ContentType::json());
+        resp.send(&self.body[..])?;
+        Ok(())
+    }
 }
 
 impl ApiServer {
@@ -64,28 +88,27 @@ impl ApiServer {
                     method_not_allowed_handler
                 }
             };
-            handler(&*ctx.clone(), req, resp).unwrap();
+            match handler(&*ctx.clone(), req) {
+                Ok(result) => result,
+                Err(err) => {
+                    // XXX: better logging here
+                    println!("INTERNAL SERVER ERROR: {}", err);
+                    ApiResponse::new(ApiError {
+                        ty: "internal_server_error".into(),
+                        message: "The server failed with an internal error".into()
+                    }, StatusCode::InternalServerError).unwrap()
+                }
+            }.write_to_response(resp).unwrap();
         })?;
         Ok(())
     }
 }
 
-fn respond<T: Serialize>(mut resp: Response, obj: T, status: StatusCode) -> Result<()> {
-    *resp.status_mut() = status;
-    let mut body : Vec<u8> = vec![];
-    resp.headers_mut().set(ContentType::json());
-    serde_json::to_writer(&mut body, &obj)
-        .chain_err(|| "Failed to serialize response for client")?;
-    resp.send(&body[..])?;
-    Ok(())
-}
-
-fn healthcheck_handler(ctx: &ServerContext, _: Request, resp: Response)
-    -> Result<()>
+fn healthcheck_handler(ctx: &ServerContext, _: Request) -> Result<ApiResponse>
 {
     // TODO: cache this
     let state = ctx.stash.get_sync_status()?;
-    respond(resp, HealthCheckResult {
+    ApiResponse::new(HealthCheckResult {
         is_healthy: state.is_healthy(),
         sync_lag: state.lag(),
     }, if state.is_healthy() {
@@ -95,28 +118,25 @@ fn healthcheck_handler(ctx: &ServerContext, _: Request, resp: Response)
     })
 }
 
-fn not_found_handler(_: &ServerContext, _: Request, resp: Response)
-    -> Result<()>
+fn not_found_handler(_: &ServerContext, _: Request) -> Result<ApiResponse>
 {
-    respond(resp, ApiError {
+    ApiResponse::new(ApiError {
         ty: "not_found".into(),
         message: "The requested resource was not found".into()
     }, StatusCode::NotFound)
 }
 
-fn bad_request_handler(_: &ServerContext, _: Request, resp: Response)
-    -> Result<()>
+fn bad_request_handler(_: &ServerContext, _: Request) -> Result<ApiResponse>
 {
-    respond(resp, ApiError {
+    ApiResponse::new(ApiError {
         ty: "bad_request".into(),
         message: "The request could not be handled".into()
     }, StatusCode::BadRequest)
 }
 
-fn method_not_allowed_handler(_: &ServerContext, _: Request, resp: Response)
-    -> Result<()>
+fn method_not_allowed_handler(_: &ServerContext, _: Request) -> Result<ApiResponse>
 {
-    respond(resp, ApiError {
+    ApiResponse::new(ApiError {
         ty: "method_not_allowed".into(),
         message: "The server cannot handle this method".into()
     }, StatusCode::MethodNotAllowed)
