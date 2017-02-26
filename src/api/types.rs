@@ -20,6 +20,7 @@ pub enum ApiError {
     BadRequest,
     MethodNotAllowed,
     BadJson(Box<serde_json::Error>),
+    SdkNotFound,
     InternalServerError(Box<Error>),
 }
 
@@ -74,6 +75,7 @@ impl ApiError {
             ApiError::BadRequest => StatusCode::BadRequest,
             ApiError::MethodNotAllowed => StatusCode::MethodNotAllowed,
             ApiError::BadJson(_) => StatusCode::BadRequest,
+            ApiError::SdkNotFound => StatusCode::NotFound,
             ApiError::InternalServerError(_) => StatusCode::InternalServerError,
         }
     }
@@ -85,23 +87,29 @@ impl ApiError {
                     ty: "not_found".into(),
                     message: "The requested resource was not found".into(),
                 }
-            },
+            }
             ApiError::BadRequest => {
                 ApiErrorDescription {
                     ty: "bad_request".into(),
                     message: "The client sent a bad request".into(),
                 }
-            },
+            }
             ApiError::MethodNotAllowed => {
                 ApiErrorDescription {
                     ty: "method_not_allowed".into(),
                     message: "This HTTP method is not supported here".into(),
                 }
-            },
+            }
             ApiError::BadJson(ref json_err) => {
                 ApiErrorDescription {
                     ty: "bad_json".into(),
                     message: format!("The client sent bad json: {}", json_err),
+                }
+            }
+            ApiError::SdkNotFound => {
+                ApiErrorDescription {
+                    ty: "sdk_not_found".into(),
+                    message: "The requested SDK was not found".into(),
                 }
             }
             ApiError::InternalServerError(ref err) => {

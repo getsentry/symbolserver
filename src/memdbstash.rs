@@ -161,11 +161,10 @@ impl MemDbStash {
 
     fn get_local_state(&self) -> Result<Arc<SdkSyncState>> {
         if let Some(ref arc) = *self.local_state.read().unwrap() {
-            Ok(arc.clone())
-        } else {
-            self.read_local_state()?;
-            Ok(self.local_state.read().unwrap().as_ref().unwrap().clone())
+            return Ok(arc.clone());
         }
+        self.read_local_state()?;
+        Ok(self.local_state.read().unwrap().as_ref().unwrap().clone())
     }
 
     fn save_local_state(&self, new_state: &SdkSyncState) -> Result<()> {
@@ -294,5 +293,14 @@ impl MemDbStash {
         }
 
         Err(ErrorKind::UnknownSdk.into())
+    }
+
+    /// Looks up an memdb by an SDK info as string if available.
+    pub fn get_memdb_from_sdk_id(&self, sdk_id: &str) -> Result<Arc<MemDb<'static>>> {
+        if let Some(sdk_info) = SdkInfo::from_filename(sdk_id) {
+            self.get_memdb(&sdk_info)
+        } else {
+            Err(ErrorKind::UnknownSdk.into())
+        }
     }
 }
