@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use serde_yaml;
 use url::Url;
 use rusoto::Region;
+use chrono::Duration;
 
 use super::{Result, ErrorKind};
 
@@ -20,9 +21,10 @@ struct AwsConfig {
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
-struct HttpConfig {
+struct ServerConfig {
     host: Option<String>,
     port: Option<u16>,
+    healthcheck_ttl: Option<u32>,
 }
 
 /// Central config object that exposes the information from
@@ -32,7 +34,7 @@ pub struct Config {
     #[serde(default)]
     aws: AwsConfig,
     #[serde(default)]
-    http: HttpConfig,
+    server: ServerConfig,
     symbol_dir: Option<PathBuf>,
 }
 
@@ -113,9 +115,15 @@ impl Config {
     }
 
     /// Return the bind target for the http server
-    pub fn get_http_socket_addr(&self) -> Result<(&str, u16)> {
-        let host = self.http.host.as_ref().map(|x| x.as_str()).unwrap_or("127.0.0.1");
-        let port = self.http.port.unwrap_or(3000);
+    pub fn get_server_socket_addr(&self) -> Result<(&str, u16)> {
+        let host = self.server.host.as_ref().map(|x| x.as_str()).unwrap_or("127.0.0.1");
+        let port = self.server.port.unwrap_or(3000);
         Ok((host, port))
+    }
+
+    /// Return the server healthcheck ttl
+    pub fn get_server_healthcheck_ttl(&self) -> Result<Duration> {
+        let ttl = self.server.healthcheck_ttl.unwrap_or(60);
+        Ok(Duration::seconds(ttl as i64))
     }
 }

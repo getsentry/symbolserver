@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use hyper::server::{Server, Request, Response};
 use hyper::status::StatusCode;
@@ -7,6 +7,7 @@ use hyper::header::ContentType;
 use hyper::uri::RequestUri;
 use serde_json;
 use serde::Serialize;
+use chrono::{DateTime, UTC};
 
 use super::config::Config;
 use super::memdbstash::MemDbStash;
@@ -15,6 +16,7 @@ use super::{Result, ResultExt};
 struct ServerContext {
     pub config: Config,
     pub stash: MemDbStash,
+    cached_memdb_status: Mutex<Option<(DateTime<UTC>, HealthCheckResult)>>,
 }
 
 pub struct ApiServer {
@@ -33,10 +35,30 @@ struct ApiError {
     pub message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct HealthCheckResult {
-    is_healthy: bool,
-    sync_lag: u32,
+    pub is_healthy: bool,
+    pub sync_lag: u32,
+}
+
+impl ServerContext {
+    pub fn check_health(&self) -> Result<HealthCheckResult> {
+        let mut cache_value = self.cached_memdb_status.lock().unwrap();
+        if_chain! {
+            if let Some((ts, ref rv)) = *cache_value;
+            if UTC::now() - self.config.get_server_healthcheck_ttl()? < ts;
+            then {
+                return Ok(rv.clone());
+            }
+        }
+        let state = self.stash.get_sync_status()?;
+        let rv = HealthCheckResult {
+            is_healthy: state.is_healthy(),
+            sync_lag: state.lag(),
+        };
+        *cache_value = Some((UTC::now(), rv.clone()));
+        Ok(rv)
+    }
 }
 
 impl ApiResponse {
@@ -64,13 +86,14 @@ impl ApiServer {
             ctx: Arc::new(ServerContext {
                 config: config.clone(),
                 stash: MemDbStash::new(config)?,
+                cached_memdb_status: Mutex::new(None),
             }),
         })
     }
 
     pub fn run(&self) -> Result<()> {
         let ctx = self.ctx.clone();
-        Server::http(self.ctx.config.get_http_socket_addr()?)?
+        Server::http(self.ctx.config.get_server_socket_addr()?)?
             .handle(move |req: Request, resp: Response|
         {
             let handler = match req.method {
@@ -107,16 +130,13 @@ impl ApiServer {
 
 fn healthcheck_handler(ctx: &ServerContext, _: Request) -> Result<ApiResponse>
 {
-    // TODO: cache this
-    let state = ctx.stash.get_sync_status()?;
-    ApiResponse::new(HealthCheckResult {
-        is_healthy: state.is_healthy(),
-        sync_lag: state.lag(),
-    }, if state.is_healthy() {
+    let rv = ctx.check_health()?;
+    let status = if rv.is_healthy {
         StatusCode::Ok
     } else {
         StatusCode::ServiceUnavailable
-    })
+    };
+    ApiResponse::new(rv, status)
 }
 
 fn not_found_handler(_: &ServerContext, _: Request) -> Result<ApiResponse>
