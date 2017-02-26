@@ -3,6 +3,8 @@ use std::io;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
+use super::apiserver::ApiError;
+
 use mach_object;
 use zip;
 use walkdir;
@@ -61,5 +63,6 @@ error_chain! {
         XmlError(serde_xml::Error);
         UrlParseError(url::ParseError);
         WebError(hyper::Error);
+        ApiError(ApiError);
     }
 }
