@@ -46,20 +46,12 @@ impl Deserialize for Addr {
                 }
             }
 
-            fn visit_u8<E: de::Error>(self, value: u8) -> StdResult<u64, E> {
-                Ok(value as u64)
-            }
-
-            fn visit_u32<E: de::Error>(self, value: u32) -> StdResult<u64, E> {
-                Ok(value as u64)
-            }
-
             fn visit_u64<E: de::Error>(self, value: u64) -> StdResult<u64, E> {
                 Ok(value)
             }
         }
 
-        Ok(Addr(deserializer.deserialize_u64(AddrVisitor)?))
+        deserializer.deserialize_str(AddrVisitor).map(Addr)
     }
 }
 
