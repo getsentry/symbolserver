@@ -58,8 +58,12 @@ impl ApiServer {
     }
 
     pub fn run(&self) -> Result<()> {
+        let addr = self.ctx.config.get_server_socket_addr()?;
+        let (ref host, port) = addr;
+        info!("Listening on http://{}:{}/", host, port);
+
         let ctx = self.ctx.clone();
-        Server::http(self.ctx.config.get_server_socket_addr()?)?
+        Server::http(addr)?
             .handle(move |req: Request, resp: Response|
         {
             let handler = match req.uri {
