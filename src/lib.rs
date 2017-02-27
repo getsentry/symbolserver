@@ -25,7 +25,7 @@ extern crate hyper;
 extern crate hyper_native_tls;
 extern crate url;
 extern crate md5;
-extern crate log;
+#[macro_use] extern crate log;
 extern crate rustc_serialize;
 #[macro_use] extern crate if_chain;
 

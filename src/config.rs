@@ -1,13 +1,13 @@
 //! Provides access to the symbolserver config
 use std::env;
-use std::path::Path;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde_yaml;
 use url::Url;
 use rusoto::Region;
 use chrono::Duration;
+use log::LogLevelFilter;
 
 use super::{Result, ErrorKind};
 
@@ -27,6 +27,12 @@ struct ServerConfig {
     healthcheck_ttl: Option<u32>,
 }
 
+#[derive(Deserialize, Debug, Default, Clone)]
+struct LogConfig {
+    level: Option<String>,
+    file: Option<PathBuf>,
+}
+
 /// Central config object that exposes the information from
 /// the symbolserver yaml config.
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -35,6 +41,8 @@ pub struct Config {
     aws: AwsConfig,
     #[serde(default)]
     server: ServerConfig,
+    #[serde(default)]
+    log: LogConfig,
     symbol_dir: Option<PathBuf>,
 }
 
@@ -125,5 +133,24 @@ impl Config {
     pub fn get_server_healthcheck_ttl(&self) -> Result<Duration> {
         let ttl = self.server.healthcheck_ttl.unwrap_or(60);
         Ok(Duration::seconds(ttl as i64))
+    }
+
+    /// Return the log level filter
+    pub fn get_log_level_filter(&self) -> Result<LogLevelFilter> {
+        if let Some(ref lvl) = self.log.level {
+            lvl.parse().map_err(|_| ErrorKind::BadConfigKey(
+                "log.level", "unknown log level").into())
+        } else {
+            Ok(LogLevelFilter::Info)
+        }
+    }
+
+    /// Return the log filename
+    pub fn get_log_filename(&self) -> Result<Option<&Path>> {
+        if let Some(ref path) = self.log.file {
+            Ok(Some(&*path))
+        } else {
+            Ok(None)
+        }
     }
 }

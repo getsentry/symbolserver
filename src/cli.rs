@@ -1,7 +1,9 @@
 //! This exposes the command line interface that the binary uses
 use std::fs;
+use std::io;
 use std::env;
 use std::process;
+use std::sync::Mutex;
 
 use clap::{App, Arg, SubCommand};
 use log;
@@ -12,32 +14,42 @@ use super::config::Config;
 use super::memdbstash::MemDbStash;
 use super::api::server::ApiServer;
 
-struct SimpleLogger;
+struct SimpleLogger<W: ?Sized> {
+    f: Mutex<Box<W>>,
+}
 
-impl log::Log for SimpleLogger {
+impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
 
     fn enabled(&self, metadata: &log::LogMetadata) -> bool {
         metadata.level() <= log::LogLevel::Info
     }
 
     fn log(&self, record: &log::LogRecord) {
+        let mut f = self.f.lock().unwrap();
         if self.enabled(record.metadata()) {
-            println!("[{}] {}: {}", record.level(),
-                record.target(), record.args());
+            writeln!(f, "[{}] {}: {}", record.level(),
+                record.target(), record.args()).ok();
         }
     }
 }
 
-fn setup_logging() {
+fn setup_logging(config: &Config) -> Result<()> {
+    let filter = config.get_log_level_filter()?;
+    let f : Box<io::Write + Send> = match config.get_log_filename()? {
+        Some(path) => Box::new(fs::File::open(path)?),
+        None => Box::new(io::stdout()),
+    };
     log::set_logger(|max_log_level| {
-        max_log_level.set(log::LogLevelFilter::Warn);
-        Box::new(SimpleLogger)
+        max_log_level.set(filter);
+        Box::new(SimpleLogger {
+            f: Mutex::new(f),
+        })
     }).unwrap();
+    Ok(())
 }
 
 /// Main entry point that starts the CLI
 pub fn main() {
-    setup_logging();
     match execute() {
         Ok(()) => {},
         Err(err) => {
@@ -91,6 +103,7 @@ fn execute() -> Result<()> {
     } else {
         Config::load_default()?
     };
+    setup_logging(&cfg)?;
 
     if let Some(matches) = matches.subcommand_matches("convert-sdk") {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),

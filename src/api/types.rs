@@ -51,8 +51,9 @@ impl ApiResponse {
             }
         }
 
-        // XXX: better logging here
-        println!("INTERNAL SERVER ERROR: {}", &err);
+        error!("Internal Server Error: {}", &err);
+        debug!("  Traceback: {:?}", err.backtrace());
+
         ApiResponse::new(ApiErrorDescription {
             ty: "internal_server_error".into(),
             message: format!("The server failed with an internal error: {}",
