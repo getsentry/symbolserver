@@ -177,7 +177,7 @@ impl<'a> MemDb<'a> {
             if s == &refstr {
                 return Ok(Some(&self.uuids()?[uuid_idx].uuid));
             }
-            offset += s.len();
+            offset += s.len() + 1;
             uuid_idx += 1;
         }
         Ok(None)

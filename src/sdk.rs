@@ -266,7 +266,7 @@ impl<'a> Iterator for Objects {
             ($expr:expr, $name:expr) => {
                 match $expr {
                     Ok(rv) => {
-                        return Some(Ok((offset, $name.to_string(), rv)));
+                        return Some(Ok((offset, format!("/{}", $name), rv)));
                     }
                     Err(err) => {
                         if let &ErrorKind::MachO(ref mach_err) = err.kind() {
