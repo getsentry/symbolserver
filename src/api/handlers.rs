@@ -11,8 +11,8 @@ use super::types::{ApiResponse, ApiError};
 #[derive(Deserialize)]
 struct SymbolQuery {
     addr: Addr,
-    image_uuid: Option<Uuid>,
-    image_path: Option<String>,
+    object_uuid: Option<Uuid>,
+    object_path: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -69,11 +69,11 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
     let mut rv = vec![];
     for symq in data.symbols {
         let mut rvsym = None;
-        if let Some(ref uuid) = symq.image_uuid {
+        if let Some(ref uuid) = symq.object_uuid {
             if let Some(sym) = sdk.lookup_by_uuid(uuid, symq.addr.into()) {
                 rvsym = Some(sym);
             }
-        } else if let Some(ref name) = symq.image_path {
+        } else if let Some(ref name) = symq.object_path {
             if let Some(sym) = sdk.lookup_by_object_name(
                 name, &data.cpu_name, symq.addr.into())
             {
