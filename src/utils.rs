@@ -1,9 +1,67 @@
 //! Provides various useful utilities.
 use std::io;
+use std::fmt;
+use std::result::Result as StdResult;
 use std::io::{Read, Write};
 use std::sync::Mutex;
 
 use pbr;
+use serde::{Serialize, Deserialize, de, ser};
+
+pub struct Addr(pub u64);
+
+impl Into<u64> for Addr {
+    fn into(self) -> u64 {
+        self.0
+    }
+}
+
+impl Serialize for Addr {
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
+        where S: ser::Serializer
+    {
+        serializer.serialize_str(&format!("0x{:x}", self.0))
+    }
+}
+
+impl Deserialize for Addr {
+    fn deserialize<D>(deserializer: D) -> StdResult<Addr, D::Error>
+        where D: de::Deserializer {
+        struct AddrVisitor;
+
+        impl de::Visitor for AddrVisitor {
+            type Value = u64;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("an address")
+            }
+
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<u64, E> {
+                if &value[..2] == "0x" {
+                    u64::from_str_radix(&value[2..], 16)
+                        .map_err(|e| E::custom(e.to_string()))
+                } else {
+                    u64::from_str_radix(&value, 10)
+                        .map_err(|e| E::custom(e.to_string()))
+                }
+            }
+
+            fn visit_u8<E: de::Error>(self, value: u8) -> StdResult<u64, E> {
+                Ok(value as u64)
+            }
+
+            fn visit_u32<E: de::Error>(self, value: u32) -> StdResult<u64, E> {
+                Ok(value as u64)
+            }
+
+            fn visit_u64<E: de::Error>(self, value: u64) -> StdResult<u64, E> {
+                Ok(value)
+            }
+        }
+
+        Ok(Addr(deserializer.deserialize_u64(AddrVisitor)?))
+    }
+}
 
 
 /// A thread safe progress bar

@@ -4,12 +4,13 @@ use hyper::method::Method;
 use uuid::Uuid;
 
 use super::super::{Result, ErrorKind};
+use super::super::utils::Addr;
 use super::server::{ServerContext, load_request_data};
 use super::types::{ApiResponse, ApiError};
 
 #[derive(Deserialize)]
 struct SymbolQuery {
-    addr: u64,
+    addr: Addr,
     image_uuid: Option<Uuid>,
     image_path: Option<String>,
 }
@@ -25,7 +26,7 @@ struct SymbolLookupRequest {
 struct Symbol {
     object_name: String,
     symbol: String,
-    addr: u64,
+    addr: Addr,
 }
 
 #[derive(Serialize)]
@@ -69,12 +70,12 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
     for symq in data.symbols {
         let mut rvsym = None;
         if let Some(ref uuid) = symq.image_uuid {
-            if let Some(sym) = sdk.lookup_by_uuid(uuid, symq.addr) {
+            if let Some(sym) = sdk.lookup_by_uuid(uuid, symq.addr.into()) {
                 rvsym = Some(sym);
             }
         } else if let Some(ref name) = symq.image_path {
             if let Some(sym) = sdk.lookup_by_object_name(
-                name, &data.cpu_name, symq.addr)
+                name, &data.cpu_name, symq.addr.into())
             {
                 rvsym = Some(sym);
             }
@@ -83,7 +84,7 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
             Symbol {
                 object_name: sym.object_name().to_string(),
                 symbol: sym.symbol().to_string(),
-                addr: sym.addr(),
+                addr: Addr(sym.addr()),
             }
         }));
     }
