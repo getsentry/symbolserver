@@ -9,6 +9,7 @@ use serde_json;
 use super::super::config::Config;
 use super::super::memdbstash::MemDbStash;
 use super::super::Result;
+use super::super::utils::HumanDuration;
 use super::handlers::{healthcheck_handler, lookup_symbol_handler};
 use super::types::{ApiResponse, ApiError};
 
@@ -57,10 +58,18 @@ impl ApiServer {
         })
     }
 
+    fn spawn_sync_thread(&self) -> Result<()> {
+        let interval = self.ctx.config.get_server_sync_interval()?;
+        info!("Checking for symbols from S3 in background every {}",
+              HumanDuration(interval));
+        Ok(())
+    }
+
     pub fn run(&self) -> Result<()> {
         let addr = self.ctx.config.get_server_socket_addr()?;
         let (ref host, port) = addr;
         info!("Listening on http://{}:{}/", host, port);
+        self.spawn_sync_thread()?;
 
         let ctx = self.ctx.clone();
         Server::http(addr)?

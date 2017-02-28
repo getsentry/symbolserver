@@ -25,6 +25,7 @@ struct ServerConfig {
     host: Option<String>,
     port: Option<u16>,
     healthcheck_ttl: Option<u32>,
+    sync_interval: Option<u32>,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -132,6 +133,12 @@ impl Config {
     /// Return the server healthcheck ttl
     pub fn get_server_healthcheck_ttl(&self) -> Result<Duration> {
         let ttl = self.server.healthcheck_ttl.unwrap_or(60);
+        Ok(Duration::seconds(ttl as i64))
+    }
+
+    /// Return the server sync interval
+    pub fn get_server_sync_interval(&self) -> Result<Duration> {
+        let ttl = self.server.sync_interval.unwrap_or(60);
         Ok(Duration::seconds(ttl as i64))
     }
 
