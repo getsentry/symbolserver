@@ -266,9 +266,7 @@ impl MemDbStash {
         let mut local_state = self.read_local_state()?;
         let remote_state = self.fetch_remote_state()?;
         let started = UTC::now();
-        if !options.user_facing {
-            info!("started sync");
-        }
+        let mut changed = false;
 
         let mut to_delete : HashSet<_> = HashSet::from_iter(
             local_state.sdks().map(|x| x.local_filename().to_string()));
@@ -277,6 +275,7 @@ impl MemDbStash {
             if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
                 if local_sdk != sdk {
                     self.update_sdk(&sdk, &options)?;
+                    changed = true;
                 } else if options.user_facing {
                     println!("  ⸰ Unchanged {}", sdk.info());
                 } else {
@@ -299,7 +298,7 @@ impl MemDbStash {
         let duration = UTC::now() - started;
         if options.user_facing {
             println!("Sync done in {}", HumanDuration(duration));
-        } else {
+        } else if changed {
             info!("finished sync in {}", HumanDuration(duration));
         }
 
