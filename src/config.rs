@@ -139,7 +139,12 @@ impl Config {
     /// Return the server sync interval
     pub fn get_server_sync_interval(&self) -> Result<Duration> {
         let ttl = self.server.sync_interval.unwrap_or(60);
-        Ok(Duration::seconds(ttl as i64))
+        if ttl <= 0 {
+            Err(ErrorKind::BadConfigKey(
+                "server.sync_interval", "Sync interval has to be positive").into())
+        } else {
+            Ok(Duration::seconds(ttl as i64))
+        }
     }
 
     /// Return the log level filter

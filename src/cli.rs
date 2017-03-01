@@ -9,9 +9,9 @@ use clap::{App, Arg, SubCommand};
 use log;
 
 use super::Result;
-use super::sdk::{Sdk, SdkInfo, DumpOptions};
+use super::sdk::{Sdk, DumpOptions};
 use super::config::Config;
-use super::memdbstash::MemDbStash;
+use super::memdbstash::{MemDbStash, SyncOptions};
 use super::api::server::ApiServer;
 
 struct SimpleLogger<W: ?Sized> {
@@ -152,15 +152,10 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
 
 fn sync_symbols_action(config: &Config) -> Result<()> {
     let stash = MemDbStash::new(config)?;
-    let status = stash.get_sync_status()?;
-    println!("Sync healthy: {:?} (lag: {})", status.is_healthy(), status.lag());
-
-    stash.sync()?;
-
-    let info = SdkInfo::new("iOS", 10, 2, 1, "14D27");
-    let memdb = stash.get_memdb(&info)?;
-    println!("MemDB: {:?}", memdb.info());
-
+    stash.sync(SyncOptions {
+        user_facing: true,
+        ..Default::default()
+    })?;
     Ok(())
 }
 

@@ -30,7 +30,7 @@ impl<'a> fmt::Display for HumanDuration {
         try_write!(self.0.num_hours(), "hour");
         try_write!(self.0.num_minutes(), "minute");
         try_write!(self.0.num_seconds(), "second");
-        write!(f, "now")
+        write!(f, "0 seconds")
     }
 }
 

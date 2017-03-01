@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 use hyper::server::{Server, Request, Response};
 use hyper::uri::RequestUri;
@@ -60,8 +61,18 @@ impl ApiServer {
 
     fn spawn_sync_thread(&self) -> Result<()> {
         let interval = self.ctx.config.get_server_sync_interval()?;
+        let std_interval = interval.to_std().unwrap();
         info!("Checking for symbols from S3 in background every {}",
               HumanDuration(interval));
+
+        let ctx = self.ctx.clone();
+        thread::spawn(move || {
+            loop {
+                ctx.stash.sync(Default::default()).unwrap();
+                thread::sleep(std_interval);
+            }
+        });
+
         Ok(())
     }
 

@@ -13,13 +13,19 @@ use std::sync::{Arc, RwLock};
 
 use serde_json;
 use xz2::write::XzDecoder;
+use chrono::UTC;
 
 use super::config::Config;
 use super::sdk::SdkInfo;
 use super::s3::S3;
 use super::memdb::MemDb;
-use super::utils::{ProgressIndicator, copy_with_progress};
+use super::utils::{ProgressIndicator, copy_with_progress, HumanDuration};
 use super::{Result, ResultExt, ErrorKind};
+
+/// Helper for synching
+pub struct SyncOptions {
+    pub user_facing: bool,
+}
 
 /// The main memdb stash type
 pub struct MemDbStash {
@@ -115,6 +121,14 @@ impl SyncStatus {
     }
 }
 
+impl Default for SyncOptions {
+    fn default() -> SyncOptions {
+        SyncOptions {
+            user_facing: false,
+        }
+    }
+}
+
 impl MemDbStash {
     /// Opens a stash for a given config.
     pub fn new(config: &Config) -> Result<MemDbStash> {
@@ -182,21 +196,36 @@ impl MemDbStash {
         Ok(SdkSyncState { sdks: sdks })
     }
 
-    fn update_sdk(&self, sdk: &RemoteSdk) -> Result<()> {
+    fn update_sdk(&self, sdk: &RemoteSdk, options: &SyncOptions) -> Result<()> {
         // XXX: the progress bar here can stall out because we currently
         // need to buffer the download into memory in the s3 code :(
-        let progress = ProgressIndicator::new(sdk.size() as usize);
+        let progress = if options.user_facing {
+            ProgressIndicator::new(sdk.size() as usize)
+        } else {
+            info!("updating {}", sdk.info());
+            ProgressIndicator::disabled()
+        };
+        let started = UTC::now();
         progress.set_message(&format!("Synchronizing {}", sdk.info()));
         let mut src = self.s3.download_sdk(sdk)?;
         let dst = fs::File::create(self.path.join(sdk.local_filename()))?;
         let mut dst = XzDecoder::new(dst);
         copy_with_progress(&progress, &mut src, &mut dst)?;
         progress.finish(&format!("Synchronized {}", sdk.info()));
+
+        let duration = UTC::now() - started;
+        if !options.user_facing {
+            info!("updated {} in {}", sdk.info(), HumanDuration(duration));
+        }
         Ok(())
     }
 
-    fn remove_sdk(&self, sdk: &RemoteSdk) -> Result<()> {
-        println!("Deleting {}", sdk.info());
+    fn remove_sdk(&self, sdk: &RemoteSdk, options: &SyncOptions) -> Result<()> {
+        if options.user_facing {
+            info!("  Deleting {}", sdk.info());
+        } else {
+            info!("removing {}", sdk.info());
+        }
         if let Err(err) = fs::remove_file(self.path.join(sdk.local_filename())) {
             if err.kind() != io::ErrorKind::NotFound {
                 return Err(err.into());
@@ -233,9 +262,13 @@ impl MemDbStash {
     }
 
     /// Synchronize the local stash with the server
-    pub fn sync(&self) -> Result<()> {
+    pub fn sync(&self, options: SyncOptions) -> Result<()> {
         let mut local_state = self.read_local_state()?;
         let remote_state = self.fetch_remote_state()?;
+        let started = UTC::now();
+        if !options.user_facing {
+            info!("started sync");
+        }
 
         let mut to_delete : HashSet<_> = HashSet::from_iter(
             local_state.sdks().map(|x| x.local_filename().to_string()));
@@ -243,12 +276,14 @@ impl MemDbStash {
         for sdk in remote_state.sdks() {
             if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
                 if local_sdk != sdk {
-                    self.update_sdk(&sdk)?;
-                } else {
+                    self.update_sdk(&sdk, &options)?;
+                } else if options.user_facing {
                     println!("  ⸰ Unchanged {}", sdk.info());
+                } else {
+                    debug!("unchanged sdk {}", sdk.info());
                 }
             } else {
-                self.update_sdk(&sdk)?;
+                self.update_sdk(&sdk, &options)?;
             }
             to_delete.remove(sdk.local_filename());
             local_state.update_sdk(&sdk);
@@ -257,11 +292,16 @@ impl MemDbStash {
 
         for local_filename in to_delete.iter() {
             if let Some(sdk) = local_state.get_sdk(local_filename) {
-                self.remove_sdk(sdk)?;
+                self.remove_sdk(sdk, &options)?;
             }
         }
 
-        println!("Done synching");
+        let duration = UTC::now() - started;
+        if options.user_facing {
+            println!("Sync done in {}", HumanDuration(duration));
+        } else {
+            info!("finished sync in {}", HumanDuration(duration));
+        }
 
         // if we get this far, the remote state is indeed the local state.
         self.save_local_state(&remote_state)?;
