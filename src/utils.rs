@@ -1,6 +1,7 @@
 //! Provides various useful utilities.
 use std::io;
 use std::fmt;
+use std::panic;
 use std::result::Result as StdResult;
 use std::io::{Read, Write};
 use std::sync::Mutex;
@@ -8,6 +9,8 @@ use std::sync::Mutex;
 use pbr;
 use chrono::Duration;
 use serde::{Serialize, Deserialize, de, ser};
+
+use super::{Result};
 
 pub struct Addr(pub u64);
 pub struct HumanDuration(pub Duration);
@@ -54,7 +57,7 @@ impl Deserialize for Addr {
                 formatter.write_str("an address")
             }
 
-            fn visit_str<E: de::Error>(self, value: &str) -> Result<u64, E> {
+            fn visit_str<E: de::Error>(self, value: &str) -> StdResult<u64, E> {
                 if &value[..2] == "0x" {
                     u64::from_str_radix(&value[2..], 16)
                         .map_err(|e| E::custom(e.to_string()))
@@ -70,6 +73,24 @@ impl Deserialize for Addr {
         }
 
         deserializer.deserialize_str(AddrVisitor).map(Addr)
+    }
+}
+
+pub fn run_isolated<F>(f: F)
+    where F: FnOnce() -> Result<()>, F: Send
+{
+    let rv = panic::catch_unwind(panic::AssertUnwindSafe(move || {
+        if let Err(err) = f() {
+            error!("task failed: {}", &err);
+            if let Some(backtrace) = err.backtrace() {
+                info!("  Traceback: {:?}", backtrace);
+            }
+        }
+    }));
+
+    // the default panic handler will already have printed here
+    if let Err(_) = rv {
+        error!("task panicked!");
     }
 }
 

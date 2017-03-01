@@ -52,7 +52,9 @@ impl ApiResponse {
         }
 
         error!("Internal Server Error: {}", &err);
-        debug!("  Traceback: {:?}", err.backtrace());
+        if let Some(backtrace) = err.backtrace() {
+            debug!("  Traceback: {:?}", backtrace);
+        }
 
         ApiResponse::new(ApiErrorDescription {
             ty: "internal_server_error".into(),

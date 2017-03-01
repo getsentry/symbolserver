@@ -10,7 +10,7 @@ use serde_json;
 use super::super::config::Config;
 use super::super::memdbstash::MemDbStash;
 use super::super::Result;
-use super::super::utils::HumanDuration;
+use super::super::utils::{HumanDuration, run_isolated};
 use super::handlers::{healthcheck_handler, lookup_symbol_handler};
 use super::types::{ApiResponse, ApiError};
 
@@ -68,7 +68,8 @@ impl ApiServer {
         let ctx = self.ctx.clone();
         thread::spawn(move || {
             loop {
-                ctx.stash.sync(Default::default()).unwrap();
+                let ctx = ctx.clone();
+                run_isolated(move || ctx.stash.sync(Default::default()));
                 thread::sleep(std_interval);
             }
         });
