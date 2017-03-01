@@ -6,6 +6,7 @@ use std::process;
 use std::sync::Mutex;
 
 use clap::{App, Arg, SubCommand};
+use chrono::UTC;
 use log;
 
 use super::Result;
@@ -27,8 +28,11 @@ impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
     fn log(&self, record: &log::LogRecord) {
         let mut f = self.f.lock().unwrap();
         if self.enabled(record.metadata()) {
-            writeln!(f, "[{}] {}: {}", record.level(),
-                record.target(), record.args()).ok();
+            writeln!(f, "[{}] [{}] {}: {}",
+                     UTC::now(),
+                     record.level(),
+                     record.target(),
+                     record.args()).ok();
         }
     }
 }

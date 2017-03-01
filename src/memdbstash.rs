@@ -283,6 +283,7 @@ impl MemDbStash {
                 }
             } else {
                 self.update_sdk(&sdk, &options)?;
+                changed = true;
             }
             to_delete.remove(sdk.local_filename());
             local_state.update_sdk(&sdk);
