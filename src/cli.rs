@@ -31,7 +31,7 @@ impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
             writeln!(f, "[{}] [{}] {}: {}",
                      UTC::now(),
                      record.level(),
-                     record.target(),
+                     record.target().split(':').next().unwrap(),
                      record.args()).ok();
         }
     }
