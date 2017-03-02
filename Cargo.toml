@@ -27,6 +27,7 @@ regex = "^0.2.1"
 uuid = { version = "^0.4", features = ["serde"] }
 lazy_static = "^0.2.2"
 clap = "^2.20.5"
+libc = "^0.2.20"
 pbr = "^1.0.0-alpha.2"
 xz2 = "^0.1.1"
 tempfile = "^2.1.5"

@@ -24,6 +24,7 @@ extern crate chrono;
 extern crate hyper;
 extern crate hyper_native_tls;
 extern crate url;
+extern crate libc;
 extern crate md5;
 #[macro_use] extern crate log;
 extern crate rustc_serialize;

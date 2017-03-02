@@ -1,7 +1,10 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::os::unix::io::{FromRawFd, RawFd};
 
+use libc;
 use hyper::server::{Server, Request, Response};
+use hyper::net::HttpListener;
 use hyper::uri::RequestUri;
 use chrono::{DateTime, UTC};
 use serde::Deserialize;
@@ -28,6 +31,12 @@ pub struct ServerContext {
 
 pub struct ApiServer {
     ctx: Arc<ServerContext>,
+}
+
+pub enum BindOptions<'a> {
+    UseConfig,
+    BindToFd(RawFd),
+    BindToAddr(&'a str),
 }
 
 impl ServerContext {
@@ -77,14 +86,30 @@ impl ApiServer {
         Ok(())
     }
 
-    pub fn run(&self) -> Result<()> {
-        let addr = self.ctx.config.get_server_socket_addr()?;
-        let (ref host, port) = addr;
-        info!("Listening on http://{}:{}/", host, port);
+    pub fn run(&self, opts: BindOptions) -> Result<()> {
+        let debug_addr;
+        let listener = match opts {
+            BindOptions::BindToAddr(addr) => {
+                debug_addr = format!("http://{}/", addr);
+                HttpListener::new(addr)?
+            }
+            BindOptions::BindToFd(fd) => {
+                debug_addr = format!("file descriptor {}", fd);
+                // unsafe is okay here because we dup the fd
+                unsafe { HttpListener::from_raw_fd(libc::dup(fd)) }
+            }
+            BindOptions::UseConfig => {
+                let addr = self.ctx.config.get_server_socket_addr()?;
+                let (host, port) = addr;
+                debug_addr = format!("http://{}:{}/", host, port);
+                HttpListener::new((host, port))?
+            }
+        };
+        info!("Listening on {}", debug_addr);
         self.spawn_sync_thread()?;
 
         let ctx = self.ctx.clone();
-        Server::http(addr)?
+        Server::new(listener)
             .handle(move |req: Request, resp: Response|
         {
             let handler = match req.uri {

@@ -5,15 +5,15 @@ use std::env;
 use std::process;
 use std::sync::Mutex;
 
-use clap::{App, Arg, SubCommand};
+use clap::{App, Arg, SubCommand, ArgMatches};
 use chrono::UTC;
 use log;
 
-use super::Result;
+use super::{Result, ResultExt};
 use super::sdk::{Sdk, DumpOptions};
 use super::config::Config;
 use super::memdbstash::{MemDbStash, SyncOptions};
-use super::api::server::ApiServer;
+use super::api::server::{ApiServer, BindOptions};
 
 struct SimpleLogger<W: ?Sized> {
     f: Mutex<Box<W>>,
@@ -82,7 +82,15 @@ fn execute() -> Result<()> {
                 .about("Updates symbols from S3"))
         .subcommand(
             SubCommand::with_name("run")
-                .about("Runs the symbol server"))
+                .about("Runs the symbol server")
+                .arg(Arg::with_name("bind")
+                     .long("bind")
+                     .value_name("ADDR")
+                     .help("Bind to a specific address (ip:port)"))
+                .arg(Arg::with_name("bind_fd")
+                     .long("bind-fd")
+                     .value_name("FD")
+                     .help("Bind to a specific file descriptor")))
         .subcommand(
             SubCommand::with_name("convert-sdk")
                 .about("Converts an SDK into a memdb file")
@@ -113,8 +121,8 @@ fn execute() -> Result<()> {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),
                            matches.value_of("output-path").unwrap_or("."),
                            matches.is_present("compress"))?;
-    } else if let Some(_matches) = matches.subcommand_matches("run") {
-        run_action(&cfg)?;
+    } else if let Some(matches) = matches.subcommand_matches("run") {
+        run_action(&cfg, matches)?;
     } else if let Some(_matches) = matches.subcommand_matches("sync-symbols") {
         sync_symbols_action(&cfg)?;
     }
@@ -163,8 +171,16 @@ fn sync_symbols_action(config: &Config) -> Result<()> {
     Ok(())
 }
 
-fn run_action(config: &Config) -> Result<()> {
+fn run_action(config: &Config, matches: &ArgMatches) -> Result<()> {
     let api_server = ApiServer::new(config)?;
-    api_server.run()?;
+
+    api_server.run(if let Some(addr) = matches.value_of("bind") {
+        BindOptions::BindToAddr(addr)
+    } else if let Some(fd) = matches.value_of("bind_fd") {
+        BindOptions::BindToFd(fd.parse().chain_err(|| "invalid value for file descriptor")?)
+    } else {
+        BindOptions::UseConfig
+    })?;
+
     Ok(())
 }
