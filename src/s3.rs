@@ -66,6 +66,7 @@ fn new_hyper_client() -> Result<HyperClient> {
     let ssl = NativeTlsClient::new().chain_err(||
         format!("Couldn't create NativeTlsClient."))?;
     let mut client = if let Ok(proxy_url) = env::var("http_proxy") {
+        info!("Using HTTP proxy at {}", proxy_url);
         let proxy : Url = proxy_url.parse()?;
         let proxy_config = ProxyConfig::new(
             "http", proxy.host_str().unwrap().to_string(),
