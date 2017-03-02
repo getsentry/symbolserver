@@ -81,7 +81,13 @@ pub fn run_isolated<F>(f: F)
 {
     let rv = panic::catch_unwind(panic::AssertUnwindSafe(move || {
         if let Err(err) = f() {
+            use std::error::Error;
             error!("task failed: {}", &err);
+            let mut cause = err.cause();
+            while let Some(the_cause) = cause {
+                error!("  caused by: {}", the_cause);
+                cause = the_cause.cause();
+            }
             if let Some(backtrace) = err.backtrace() {
                 info!("  Traceback: {:?}", backtrace);
             }

@@ -68,6 +68,9 @@ pub fn main() {
                 println!("  caused by: {}", the_cause);
                 cause = the_cause.cause();
             }
+            if let Some(backtrace) = err.backtrace() {
+                info!("  Traceback: {:?}", backtrace);
+            }
             process::exit(1);
         }
     }
