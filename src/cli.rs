@@ -39,6 +39,10 @@ impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
 
 fn setup_logging(config: &Config) -> Result<()> {
     let filter = config.get_log_level_filter()?;
+    if filter >= log::LogLevel::Debug {
+        env::set_var("RUST_BACKTRACE", "1");
+    }
+
     let f : Box<io::Write + Send> = match config.get_log_filename()? {
         Some(path) => Box::new(fs::File::open(path)?),
         None => Box::new(io::stdout()),
@@ -83,6 +87,9 @@ fn execute() -> Result<()> {
         .subcommand(
             SubCommand::with_name("run")
                 .about("Runs the symbol server")
+                .arg(Arg::with_name("disable_sync")
+                     .long("disable-sync")
+                     .help("Disables the background synching"))
                 .arg(Arg::with_name("bind")
                      .long("bind")
                      .value_name("ADDR")
@@ -173,6 +180,10 @@ fn sync_symbols_action(config: &Config) -> Result<()> {
 
 fn run_action(config: &Config, matches: &ArgMatches) -> Result<()> {
     let api_server = ApiServer::new(config)?;
+
+    if !matches.is_present("disable_sync") {
+        api_server.spawn_sync_thread()?;
+    }
 
     api_server.run(if let Some(addr) = matches.value_of("bind") {
         BindOptions::BindToAddr(addr)

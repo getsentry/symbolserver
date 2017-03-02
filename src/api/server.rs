@@ -68,7 +68,7 @@ impl ApiServer {
         })
     }
 
-    fn spawn_sync_thread(&self) -> Result<()> {
+    pub fn spawn_sync_thread(&self) -> Result<()> {
         let interval = self.ctx.config.get_server_sync_interval()?;
         let std_interval = interval.to_std().unwrap();
         info!("Checking for symbols from S3 in background every {}",
@@ -106,7 +106,6 @@ impl ApiServer {
             }
         };
         info!("Listening on {}", debug_addr);
-        self.spawn_sync_thread()?;
 
         let ctx = self.ctx.clone();
         Server::new(listener)
