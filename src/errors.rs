@@ -41,14 +41,9 @@ error_chain! {
             description("encountered a bad config key")
             display("config key '{}' has a bad value: {}", path, msg)
         }
-        MissingConfigKey(path: &'static str, env_var: Option<&'static str>) {
+        MissingConfigKey(path: &'static str) {
             description("encountered a missing config key")
-            display("encountered missing config key '{}'{}'.", path, match env_var {
-                &Some(env_var) => {
-                    format!(" (can also be set with environment variable '{}')", env_var)
-                }
-                _ => "".into()
-            })
+            display("encountered missing config key '{}'", path)
         }
     }
 

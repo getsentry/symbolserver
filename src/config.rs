@@ -87,7 +87,7 @@ impl Config {
             Url::parse(value)?
         } else {
             return Err(ErrorKind::MissingConfigKey(
-                "aws.bucket_url", None).into());
+                "aws.bucket_url").into());
         };
         if url.scheme() != "s3" {
             return Err(ErrorKind::BadConfigKey(
@@ -123,7 +123,7 @@ impl Config {
         if let Some(ref path) = self.symbol_dir {
             Ok(path.as_path())
         } else {
-            Err(ErrorKind::MissingConfigKey("symbol_dir", None).into())
+            Err(ErrorKind::MissingConfigKey("symbol_dir").into())
         }
     }
 
