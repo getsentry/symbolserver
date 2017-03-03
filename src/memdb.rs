@@ -35,6 +35,7 @@ pub struct MemDb<'a> {
 /// Represents a symbol from a memdb file.
 #[derive(Debug)]
 pub struct Symbol<'a> {
+    object_uuid: Uuid,
     object_name: Cow<'a, str>,
     symbol: Cow<'a, str>,
     addr: u64,
@@ -85,6 +86,11 @@ impl<'a> Backing<'a> {
 }
 
 impl<'a> Symbol<'a> {
+
+    /// The uuid of the image
+    pub fn object_uuid(&self) -> Uuid {
+        self.object_uuid.clone()
+    }
 
     /// The object name a string
     pub fn object_name(&self) -> &str {
@@ -187,7 +193,7 @@ impl<'a> MemDb<'a> {
     {
         if let Some(index) = self.get_index(uuid)? {
             if let Some(item) = binsearch_by_key(index, addr, |item| item.addr()) {
-                return Ok(Some(self.index_item_to_symbol(item)?));
+                return Ok(Some(self.index_item_to_symbol(item, uuid)?));
             }
         }
         Ok(None)
@@ -254,8 +260,9 @@ impl<'a> MemDb<'a> {
         self.get_string(&self.symbols()?[sym_id])
     }
 
-    fn index_item_to_symbol(&'a self, ii: &IndexItem) -> Result<Symbol<'a>> {
+    fn index_item_to_symbol(&'a self, ii: &IndexItem, uuid: &Uuid) -> Result<Symbol<'a>> {
         Ok(Symbol {
+            object_uuid: uuid.clone(),
             object_name: self.get_object_name(ii.src_id())?,
             symbol: self.get_symbol(ii.sym_id())?,
             addr: ii.addr(),

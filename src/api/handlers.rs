@@ -9,23 +9,17 @@ use super::server::{ServerContext, load_request_data};
 use super::types::{ApiResponse, ApiError};
 
 #[derive(Deserialize)]
-struct SymbolQuery {
-    addr: Addr,
-    object_uuid: Option<Uuid>,
-    object_path: Option<String>,
-}
-
-#[derive(Deserialize)]
 struct SymbolLookupRequest {
     sdk_id: String,
     cpu_name: String,
-    symbols: Vec<SymbolQuery>,
+    symbols: Vec<Symbol>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Symbol {
-    object_name: String,
-    symbol: String,
+    object_uuid: Option<Uuid>,
+    object_name: Option<String>,
+    symbol: Option<String>,
     addr: Addr,
 }
 
@@ -73,7 +67,7 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
             if let Some(sym) = sdk.lookup_by_uuid(uuid, symq.addr.into()) {
                 rvsym = Some(sym);
             }
-        } else if let Some(ref name) = symq.object_path {
+        } else if let Some(ref name) = symq.object_name {
             if let Some(sym) = sdk.lookup_by_object_name(
                 name, &data.cpu_name, symq.addr.into())
             {
@@ -82,8 +76,9 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
         }
         rv.push(rvsym.map(|sym| {
             Symbol {
-                object_name: sym.object_name().to_string(),
-                symbol: sym.symbol().to_string(),
+                object_uuid: Some(sym.object_uuid()),
+                object_name: Some(sym.object_name().to_string()),
+                symbol: Some(sym.symbol().to_string()),
                 addr: Addr(sym.addr()),
             }
         }));
