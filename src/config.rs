@@ -62,7 +62,7 @@ impl Config {
             Some(home) => home,
             None => { return Ok(Default::default()) },
         };
-        home.push(".symbolserver.yml");
+        home.push(".sentry-symbolserver.yml");
 
         Ok(if let Ok(_) = fs::metadata(&home) {
             Config::load_file(&home)?
