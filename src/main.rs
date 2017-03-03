@@ -1,5 +1,5 @@
-extern crate symbolserver;
+extern crate libsymbolserver;
 
 fn main() {
-    symbolserver::cli::main();
+    libsymbolserver::cli::main();
 }

@@ -1,8 +1,8 @@
-extern crate symbolserver;
+extern crate libsymbolserver;
 
 use std::path::Path;
 
-use symbolserver::sdk::SdkInfo;
+use libsymbolserver::sdk::SdkInfo;
 
 #[test]
 fn test_sdk_info_parse_ios() {

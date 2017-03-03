@@ -107,9 +107,8 @@ fn config_from_matches(matches: &ArgMatches) -> Result<Config> {
 }
 
 fn execute() -> Result<()> {
-    let app = App::new("SymbolServer")
-        .author("Sentry")
-        .about("Serves up apple system symbols")
+    let app = App::new("sentry-symbolserver")
+        .about("This tool implements an Apple SDK processor and server.")
         .arg(Arg::with_name("config")
              .long("config")
              .value_name("FILE")
@@ -133,7 +132,7 @@ fn execute() -> Result<()> {
              .value_name("REGION")
              .help("Sets the AWS region the bucket is located in"))
         .subcommand(
-            SubCommand::with_name("sync-sdks")
+            SubCommand::with_name("sync")
                 .about("Updates symbols from S3"))
         .subcommand(
             SubCommand::with_name("run")
@@ -177,8 +176,8 @@ fn execute() -> Result<()> {
                            matches.is_present("compress"))?;
     } else if let Some(matches) = matches.subcommand_matches("run") {
         run_action(&cfg, matches)?;
-    } else if let Some(_matches) = matches.subcommand_matches("sync-sdks") {
-        sync_sdks_action(&cfg)?;
+    } else if let Some(_matches) = matches.subcommand_matches("sync") {
+        sync_action(&cfg)?;
     }
 
     Ok(())
@@ -216,7 +215,7 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
     Ok(())
 }
 
-fn sync_sdks_action(config: &Config) -> Result<()> {
+fn sync_action(config: &Config) -> Result<()> {
     let stash = MemDbStash::new(config)?;
     stash.sync(SyncOptions {
         user_facing: true,

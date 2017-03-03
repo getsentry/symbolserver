@@ -1,14 +1,14 @@
 [package]
-name = "symbolserver"
+name = "sentry-symbolserver"
 version = "0.1.0"
-authors = ["Sentry <daniel.griesser.86@gmail.com>"]
+authors = ["Sentry <hello@getsentry.com>"]
 
 [lib]
-name = "symbolserver"
+name = "libsymbolserver"
 path = "src/lib.rs"
 
 [[bin]]
-name = "symbolserver"
+name = "sentry-symbolserver"
 path = "src/main.rs"
 doc = false
 
