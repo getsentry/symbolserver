@@ -89,7 +89,7 @@ pub fn run_isolated<F>(f: F)
                 cause = the_cause.cause();
             }
             if let Some(backtrace) = err.backtrace() {
-                info!("  Traceback: {:?}", backtrace);
+                debug!("  Traceback: {:?}", backtrace);
             }
         }
     }));

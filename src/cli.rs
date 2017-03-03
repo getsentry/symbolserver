@@ -73,7 +73,7 @@ pub fn main() {
                 cause = the_cause.cause();
             }
             if let Some(backtrace) = err.backtrace() {
-                info!("  Traceback: {:?}", backtrace);
+                debug!("  Traceback: {:?}", backtrace);
             }
             process::exit(1);
         }
