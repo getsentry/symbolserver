@@ -101,16 +101,20 @@ impl Config {
 
     /// Return the AWS region
     pub fn get_aws_region(&self) -> Result<Region> {
-        match self.aws.region {
-            Some(ref region) => {
-                if let Ok(rv) = region.parse() {
-                    Ok(rv)
-                } else {
-                    Err(ErrorKind::BadConfigKey(
-                        "aws.region", "An unknown AWS region was provided").into())
-                }
+        let region_opt = self.aws.region
+            .as_ref()
+            .map(|x| x.to_string())
+            .or_else(|| env::var("AWS_DEFAULT_REGION").ok());
+
+        if let Some(region) = region_opt {
+            if let Ok(rv) = region.parse() {
+                Ok(rv)
+            } else {
+                Err(ErrorKind::BadConfigKey(
+                    "aws.region", "An unknown AWS region was provided").into())
             }
-            None => Ok(Region::UsEast1)
+        } else {
+            Ok(Region::UsEast1)
         }
     }
 
