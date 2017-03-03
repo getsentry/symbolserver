@@ -285,10 +285,11 @@ impl MemDbStash {
             local_state.sdks().map(|x| x.local_filename().to_string()));
 
         for sdk in remote_state.sdks() {
+            let mut changed_something = false;
             if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
                 if local_sdk != sdk {
                     self.update_sdk(&sdk, &options)?;
-                    changed = true;
+                    changed_something = true;
                 } else if options.user_facing {
                     println!("  ⸰ Unchanged {}", sdk.info());
                 } else {
@@ -296,12 +297,16 @@ impl MemDbStash {
                 }
             } else {
                 self.update_sdk(&sdk, &options)?;
-                changed = true;
+                changed_something = true;
             }
+
             to_delete.remove(sdk.local_filename());
-            local_state.update_sdk(&sdk);
-            local_state.revision = Some(local_state.revision.unwrap_or(0) + 1);
-            self.save_local_state(&local_state)?;
+            if changed_something {
+                changed = true;
+                local_state.update_sdk(&sdk);
+                local_state.revision = Some(local_state.revision.unwrap_or(0) + 1);
+                self.save_local_state(&local_state)?;
+            }
         }
 
         for local_filename in to_delete.iter() {
