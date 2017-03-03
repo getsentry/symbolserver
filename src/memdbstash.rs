@@ -300,6 +300,7 @@ impl MemDbStash {
             }
             to_delete.remove(sdk.local_filename());
             local_state.update_sdk(&sdk);
+            local_state.revision = Some(local_state.revision.unwrap_or(0) + 1);
             self.save_local_state(&local_state)?;
         }
 
