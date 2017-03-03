@@ -9,7 +9,7 @@ use clap::{App, Arg, SubCommand, ArgMatches};
 use chrono::UTC;
 use log;
 
-use super::{Result, ResultExt};
+use super::{Result, ResultExt, Error};
 use super::sdk::{Sdk, DumpOptions};
 use super::config::Config;
 use super::memdbstash::{MemDbStash, SyncOptions};
@@ -37,8 +37,12 @@ impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
     }
 }
 
-fn setup_logging(config: &Config) -> Result<()> {
-    let filter = config.get_log_level_filter()?;
+fn setup_logging(config: &Config, log_level: Option<&str>) -> Result<()> {
+    let mut filter = match log_level {
+        Some(value) => value.parse()
+            .map_err(|_| Error::from("Invalid value for log level"))?,
+        None => config.get_log_level_filter()?
+    };
     if filter >= log::LogLevel::Debug {
         env::set_var("RUST_BACKTRACE", "1");
     }
@@ -84,6 +88,11 @@ fn execute() -> Result<()> {
              .long("config")
              .value_name("FILE")
              .help("The path to the config file"))
+        .arg(Arg::with_name("log_level")
+             .short("l")
+             .long("log-level")
+             .value_name("LEVEL")
+             .help("Overrides the log level from the config"))
         .subcommand(
             SubCommand::with_name("sync-sdks")
                 .about("Updates symbols from S3"))
@@ -125,7 +134,7 @@ fn execute() -> Result<()> {
     } else {
         Config::load_default()?
     };
-    setup_logging(&cfg)?;
+    setup_logging(&cfg, matches.value_of("log_level"))?;
 
     if let Some(matches) = matches.subcommand_matches("convert-sdk") {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),
