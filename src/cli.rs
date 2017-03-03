@@ -5,7 +5,7 @@ use std::env;
 use std::process;
 use std::sync::Mutex;
 
-use clap::{App, Arg, SubCommand, ArgMatches};
+use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use chrono::UTC;
 use log;
 
@@ -109,6 +109,8 @@ fn config_from_matches(matches: &ArgMatches) -> Result<Config> {
 fn execute() -> Result<()> {
     let app = App::new("sentry-symbolserver")
         .about("This tool implements an Apple SDK processor and server.")
+        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .setting(AppSettings::ColorNever)
         .arg(Arg::with_name("config")
              .long("config")
              .value_name("FILE")
