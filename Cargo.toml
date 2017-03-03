@@ -43,4 +43,5 @@ if_chain = "^0.1.2"
 # We use our own version for now because of
 #   https://github.com/rusoto/rusoto/pull/569
 rusoto = { git = "https://github.com/mitsuhiko/rusoto", features = ["s3"] }
-mach_object = { git = "https://github.com/mitsuhiko/rust-macho" }
+#mach_object = { git = "https://github.com/flier/rust-macho" }
+mach_object = "^0.1.3"

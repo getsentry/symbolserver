@@ -142,7 +142,9 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             if let Some(fname) = Path::new(src).file_name().and_then(|x| x.to_str()) {
                 self.progress.set_message(fname);
             }
-            self.write_object_variant(&obj, &variant, src)?;
+            if variant.uuid().is_some() {
+                self.write_object_variant(&obj, &variant, src)?;
+            }
         }
         Ok(())
     }
