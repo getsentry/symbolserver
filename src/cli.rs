@@ -93,6 +93,16 @@ fn config_from_matches(matches: &ArgMatches) -> Result<Config> {
         cfg.set_symbol_dir(value);
     }
 
+    if let Some(value) = matches.value_of("aws_bucket_url") {
+        cfg.set_aws_bucket_url(value);
+    }
+
+    if let Some(value) = matches.value_of("aws_region") {
+        let region = value.parse()
+            .map_err(|_| Error::from("Invalid AWS region"))?;
+        cfg.set_aws_region(region);
+    }
+
     Ok(cfg)
 }
 
@@ -114,6 +124,14 @@ fn execute() -> Result<()> {
              .long("symbol-dir")
              .value_name("PATH")
              .help("The path to the symbol directory"))
+        .arg(Arg::with_name("aws_bucket_url")
+             .long("aws-bucket-url")
+             .value_name("URL")
+             .help("The bucket URL the sync tool should pull from"))
+        .arg(Arg::with_name("aws_region")
+             .long("aws-region")
+             .value_name("REGION")
+             .help("Sets the AWS region the bucket is located in"))
         .subcommand(
             SubCommand::with_name("sync-sdks")
                 .about("Updates symbols from S3"))

@@ -99,6 +99,11 @@ impl Config {
         Ok(url)
     }
 
+    /// Overrides the AWS bucket URL.
+    pub fn set_aws_bucket_url(&mut self, value: &str) {
+        self.aws.bucket_url = Some(value.to_string());
+    }
+
     /// Return the AWS region
     pub fn get_aws_region(&self) -> Result<Region> {
         let region_opt = self.aws.region
@@ -116,6 +121,11 @@ impl Config {
         } else {
             Ok(Region::UsEast1)
         }
+    }
+
+    /// Overrides the AWS region
+    pub fn set_aws_region(&mut self, value: Region) {
+        self.aws.region = Some(value.to_string());
     }
 
     /// Return the path where symbols are stored.
