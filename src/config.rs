@@ -127,6 +127,11 @@ impl Config {
         }
     }
 
+    /// Override the symbol dir.
+    pub fn set_symbol_dir<P: AsRef<Path>>(&mut self, value: P) {
+        self.symbol_dir = Some(value.as_ref().to_path_buf());
+    }
+
     /// Return the bind target for the http server
     pub fn get_server_socket_addr(&self) -> Result<(&str, u16)> {
         let host = self.server.host.as_ref().map(|x| x.as_str()).unwrap_or("127.0.0.1");
@@ -159,6 +164,11 @@ impl Config {
         } else {
             Ok(LogLevelFilter::Info)
         }
+    }
+
+    /// Override the log level filter in the config
+    pub fn set_log_level_filter(&mut self, value: LogLevelFilter) {
+        self.log.level = Some(value.to_string());
     }
 
     /// Return the log filename

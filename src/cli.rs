@@ -37,12 +37,8 @@ impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
     }
 }
 
-fn setup_logging(config: &Config, log_level: Option<&str>) -> Result<()> {
-    let filter = match log_level {
-        Some(value) => value.parse()
-            .map_err(|_| Error::from("Invalid value for log level"))?,
-        None => config.get_log_level_filter()?
-    };
+fn setup_logging(config: &Config) -> Result<()> {
+    let filter = config.get_log_level_filter()?;
     if filter >= log::LogLevel::Debug {
         env::set_var("RUST_BACKTRACE", "1");
     }
@@ -80,6 +76,26 @@ pub fn main() {
     }
 }
 
+fn config_from_matches(matches: &ArgMatches) -> Result<Config> {
+    let mut cfg = if let Some(config_path) = matches.value_of("config") {
+        Config::load_file(config_path)?
+    } else {
+        Config::load_default()?
+    };
+
+    if let Some(value) = matches.value_of("log_level") {
+        let filter = value.parse()
+            .map_err(|_| Error::from("Invalid value for log level"))?;
+        cfg.set_log_level_filter(filter);
+    };
+
+    if let Some(value) = matches.value_of("symbol_dir") {
+        cfg.set_symbol_dir(value);
+    }
+
+    Ok(cfg)
+}
+
 fn execute() -> Result<()> {
     let app = App::new("SymbolServer")
         .author("Sentry")
@@ -93,6 +109,11 @@ fn execute() -> Result<()> {
              .long("log-level")
              .value_name("LEVEL")
              .help("Overrides the log level from the config"))
+        .arg(Arg::with_name("symbol_dir")
+             .short("p")
+             .long("symbol-dir")
+             .value_name("PATH")
+             .help("The path to the symbol directory"))
         .subcommand(
             SubCommand::with_name("sync-sdks")
                 .about("Updates symbols from S3"))
@@ -129,12 +150,8 @@ fn execute() -> Result<()> {
                      .help("Where the result should be stored")));
     let matches = app.get_matches();
 
-    let cfg = if let Some(config_path) = matches.value_of("config") {
-        Config::load_file(config_path)?
-    } else {
-        Config::load_default()?
-    };
-    setup_logging(&cfg, matches.value_of("log_level"))?;
+    let cfg = config_from_matches(&matches)?;
+    setup_logging(&cfg)?;
 
     if let Some(matches) = matches.subcommand_matches("convert-sdk") {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),
