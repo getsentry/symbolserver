@@ -38,7 +38,7 @@ impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
 }
 
 fn setup_logging(config: &Config, log_level: Option<&str>) -> Result<()> {
-    let mut filter = match log_level {
+    let filter = match log_level {
         Some(value) => value.parse()
             .map_err(|_| Error::from("Invalid value for log level"))?,
         None => config.get_log_level_filter()?

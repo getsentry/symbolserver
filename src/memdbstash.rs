@@ -47,6 +47,7 @@ pub struct RemoteSdk {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 struct SdkSyncState {
     sdks: HashMap<String, RemoteSdk>,
+    revision: Option<u64>,
 }
 
 /// Information about the health of the stash sync
@@ -55,6 +56,7 @@ pub struct SyncStatus {
     remote_total: u32,
     missing: u32,
     different: u32,
+    revision: u64,
 }
 
 impl RemoteSdk {
@@ -118,6 +120,11 @@ impl SyncStatus {
         let total = self.remote_total as f32;
         let lag = self.lag() as f32;
         lag / total < 0.10
+    }
+
+    /// Returns the revision of the stash
+    pub fn revision(&self) -> u64 {
+        self.revision
     }
 }
 
@@ -193,7 +200,7 @@ impl MemDbStash {
         for remote_sdk in self.s3.list_upstream_sdks()? {
             sdks.insert(remote_sdk.local_filename().into(), remote_sdk);
         }
-        Ok(SdkSyncState { sdks: sdks })
+        Ok(SdkSyncState { sdks: sdks, revision: None })
     }
 
     fn update_sdk(&self, sdk: &RemoteSdk, options: &SyncOptions) -> Result<()> {
@@ -234,6 +241,11 @@ impl MemDbStash {
         Ok(())
     }
 
+    /// Returns the current revision
+    pub fn get_revision(&self) -> Result<u64> {
+        Ok(self.read_local_state()?.revision.unwrap_or(0))
+    }
+
     /// Checks the local stash against the server
     pub fn get_sync_status(&self) -> Result<SyncStatus> {
         let local_state = self.read_local_state()?;
@@ -258,13 +270,14 @@ impl MemDbStash {
             remote_total: remote_total as u32,
             missing: missing as u32,
             different: different as u32,
+            revision: local_state.revision.unwrap_or(0),
         })
     }
 
     /// Synchronize the local stash with the server
     pub fn sync(&self, options: SyncOptions) -> Result<()> {
         let mut local_state = self.read_local_state()?;
-        let remote_state = self.fetch_remote_state()?;
+        let mut remote_state = self.fetch_remote_state()?;
         let started = UTC::now();
         let mut changed = false;
 
@@ -304,6 +317,7 @@ impl MemDbStash {
         }
 
         // if we get this far, the remote state is indeed the local state.
+        remote_state.revision = Some(local_state.revision.unwrap_or(0) + 1);
         self.save_local_state(&remote_state)?;
 
         Ok(())
