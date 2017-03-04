@@ -201,7 +201,7 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
         }
 
         println!("SDK {} ({} {}):", sdk.info().name(),
-                 sdk.info().version(), sdk.info().build());
+                 sdk.info().version(), sdk.info().build().unwrap_or("UNKNONW"));
 
         // make sure we close the file at the end, in case we want to
         // re-open it for compressing.

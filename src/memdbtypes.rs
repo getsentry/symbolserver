@@ -75,16 +75,19 @@ impl PackedSdkInfo {
         self.version_minor = info.version_minor() as u16;
         self.version_patchlevel = info.version_patchlevel() as u16;
         copy_str_to_slice(&mut self.name[..], info.name());
-        copy_str_to_slice(&mut self.build[..], info.build());
+        if let Some(build) = info.build() {
+            copy_str_to_slice(&mut self.build[..], build);
+        }
     }
 
     pub fn to_sdk_info(&self) -> SdkInfo {
+        let build = str_from_zero_slice(&self.build[..]);
         SdkInfo::new(
             str_from_zero_slice(&self.name[..]),
             self.version_major as u32,
             self.version_minor as u32,
             self.version_patchlevel as u32,
-            str_from_zero_slice(&self.build[..]),
+            if build.is_empty() { None } else { Some(build) },
         )
     }
 }

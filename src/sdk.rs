@@ -56,7 +56,7 @@ pub struct SdkInfo {
     version_major: u32,
     version_minor: u32,
     version_patchlevel: u32,
-    build: String,
+    build: Option<String>,
 }
 
 /// Iterates over all objects in an SDK
@@ -86,7 +86,7 @@ impl<'a> fmt::Display for Version {
 
 impl fmt::Display for SdkInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} ({})", self.name, self.version(), self.build())
+        write!(f, "{} {} ({})", self.name, self.version(), self.build().unwrap_or("UNKNOWN"))
     }
 }
 
@@ -94,7 +94,7 @@ impl SdkInfo {
 
     /// Manually construct an SDK info
     pub fn new(name: &str, version_major: u32, version_minor: u32,
-               version_patchlevel: u32, build: &str)
+               version_patchlevel: u32, build: Option<&str>)
         -> SdkInfo
     {
         SdkInfo {
@@ -102,7 +102,7 @@ impl SdkInfo {
             version_major: version_major,
             version_minor: version_minor,
             version_patchlevel: version_patchlevel,
-            build: build.to_string(),
+            build: build.map(|x| x.to_string()),
         }
     }
 
@@ -129,8 +129,8 @@ impl SdkInfo {
             static ref MEMDB_FILENAME_RE: Regex = Regex::new(r"(?x)
                 ^
                     ([^-]+)_
-                    (\d+)\.(\d+)(?:\.(\d+))?_
-                    ([a-zA-Z0-9]+)
+                    (\d+)\.(\d+)(?:\.(\d+))?
+                    (?:_([a-zA-Z0-9]+))?
                     (?:\.memdbz?)?
                 $
             ").unwrap();
@@ -144,7 +144,7 @@ impl SdkInfo {
                 try_opt!(caps.get(2).unwrap().as_str().parse().ok()),
                 try_opt!(caps.get(3).unwrap().as_str().parse().ok()),
                 try_opt!(caps.get(4).map(|x| x.as_str()).unwrap_or("0").parse().ok()),
-                try_opt!(caps.get(5).map(|x| x.as_str())),
+                caps.get(5).map(|x| x.as_str()),
             ));
         }
 
@@ -155,7 +155,7 @@ impl SdkInfo {
             try_opt!(caps.get(1).unwrap().as_str().parse().ok()),
             try_opt!(caps.get(2).unwrap().as_str().parse().ok()),
             try_opt!(caps.get(3).map(|x| x.as_str()).unwrap_or("0").parse().ok()),
-            try_opt!(caps.get(4).map(|x| x.as_str())),
+            caps.get(4).map(|x| x.as_str()),
         ))
     }
 
@@ -185,18 +185,18 @@ impl SdkInfo {
     }
 
     /// The build of the SDK
-    pub fn build(&self) -> &str {
-        &self.build
+    pub fn build(&self) -> Option<&str> {
+        self.build.as_ref().map(|x| &**x)
     }
 
     /// Returns the intended memdb filename
     pub fn memdb_filename(&self) -> String {
-        format!("{}_{}.{}.{}_{}.memdb",
+        format!("{}_{}.{}.{}{}.memdb",
                 self.name,
                 self.version_major,
                 self.version_minor,
                 self.version_patchlevel,
-                self.build)
+                self.build.as_ref().map(|x| format!("_{}", x)).unwrap_or("".into()))
     }
 }
 
