@@ -3,7 +3,7 @@ use hyper::status::StatusCode;
 use hyper::method::Method;
 use uuid::Uuid;
 
-use super::super::{Result, ErrorKind};
+use super::super::Result;
 use super::super::utils::Addr;
 use super::super::memdb::Symbol as MemDbSymbol;
 use super::server::{ServerContext, load_request_data};
