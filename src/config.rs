@@ -2,6 +2,7 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::io::BufReader;
 
 use serde_yaml;
 use url::Url;
@@ -50,8 +51,8 @@ pub struct Config {
 impl Config {
     /// Loads a config from a given file
     pub fn load_file<P: AsRef<Path>>(path: P) -> Result<Config> {
-        let mut f = fs::File::open(path)?;
-        serde_yaml::from_reader(&mut f).map_err(|err| {
+        let f = fs::File::open(path)?;
+        serde_yaml::from_reader(BufReader::new(f)).map_err(|err| {
             ErrorKind::ConfigError(err).into()
         })
     }

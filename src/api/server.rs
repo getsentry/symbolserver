@@ -1,9 +1,11 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::io::Read;
 use std::os::unix::io::{FromRawFd, RawFd};
 
 use libc;
 use hyper::server::{Server, Request, Response};
+use hyper::header::ContentLength;
 use hyper::net::HttpListener;
 use hyper::uri::RequestUri;
 use chrono::{DateTime, UTC};
@@ -132,7 +134,18 @@ impl ApiServer {
 }
 
 pub fn load_request_data<D: Deserialize>(req: &mut Request) -> Result<D> {
-    Ok(match serde_json::from_reader(req) {
+    if let Some(&ContentLength(length)) = req.headers.get() {
+        if length > 1024 * 1024 * 2 {
+            return Err(ApiError::PayloadTooLarge.into());
+        }
+    } else {
+        return Err(ApiError::BadRequest.into());
+    }
+
+    let mut body: Vec<u8> = vec![];
+    req.read_to_end(&mut body)?;
+
+    Ok(match serde_json::from_slice(&body[..]) {
         Ok(data) => data,
         Err(err) => { return Err(ApiError::BadJson(Box::new(err)).into()); }
     })

@@ -19,6 +19,7 @@ pub enum ApiError {
     NotFound,
     BadRequest,
     MethodNotAllowed,
+    PayloadTooLarge,
     BadJson(Box<serde_json::Error>),
     SdkNotFound,
     InternalServerError(Box<Error>),
@@ -77,6 +78,7 @@ impl ApiError {
             ApiError::NotFound => StatusCode::NotFound,
             ApiError::BadRequest => StatusCode::BadRequest,
             ApiError::MethodNotAllowed => StatusCode::MethodNotAllowed,
+            ApiError::PayloadTooLarge => StatusCode::PayloadTooLarge,
             ApiError::BadJson(_) => StatusCode::BadRequest,
             ApiError::SdkNotFound => StatusCode::NotFound,
             ApiError::InternalServerError(_) => StatusCode::InternalServerError,
@@ -101,6 +103,12 @@ impl ApiError {
                 ApiErrorDescription {
                     ty: "method_not_allowed".into(),
                     message: "This HTTP method is not supported here".into(),
+                }
+            }
+            ApiError::PayloadTooLarge => {
+                ApiErrorDescription {
+                    ty: "payload_too_large".into(),
+                    message: "The request payload is too large".into(),
                 }
             }
             ApiError::BadJson(ref json_err) => {

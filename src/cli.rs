@@ -195,7 +195,7 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
             println!("");
         }
         let sdk = Sdk::new(&path)?;
-        let mut dst = dst_base.join(&sdk.info().memdb_filename());
+        let mut dst = dst_base.join(sdk.info().memdb_filename());
         if compress {
             dst.set_extension("memdbz");
         }

@@ -164,8 +164,8 @@ impl MemDbStash {
     }
 
     fn read_local_state(&self) -> Result<SdkSyncState> {
-        let rv : SdkSyncState = match fs::File::open(&self.get_local_sync_state_filename()) {
-            Ok(f) => serde_json::from_reader(f)
+        let rv: SdkSyncState = match fs::File::open(&self.get_local_sync_state_filename()) {
+            Ok(f) => serde_json::from_reader(io::BufReader::new(f))
                 .chain_err(|| "Parsing error on loading sync state")?,
             Err(err) => {
                 if err.kind() == io::ErrorKind::NotFound {
@@ -336,16 +336,17 @@ impl MemDbStash {
     /// does not exist, a `UnknownSdk` error is returned.
     pub fn get_memdb(&self, info: &SdkInfo) -> Result<Arc<MemDb<'static>>> {
         let local_state = self.get_local_state()?;
+        let filename = info.memdb_filename();
 
         // make sure we check in the local state first if the SDK exists.
         // if we go directly to the memdbs array or look at the file system
         // we might start to consider things that are not available yet or
         // not available any longer.
-        if local_state.get_sdk(&info.memdb_filename()).is_some() {
+        if local_state.get_sdk(&filename).is_some() {
             if let Some(arc) = self.memdbs.read().unwrap().get(info) {
                 return Ok(arc.clone());
             }
-            let memdb = MemDb::from_path(self.path.join(info.memdb_filename()))?;
+            let memdb = MemDb::from_path(self.path.join(&filename))?;
             self.memdbs.write().unwrap().insert(info.clone(), Arc::new(memdb));
             if let Some(arc) = self.memdbs.read().unwrap().get(info) {
                 return Ok(arc.clone());
