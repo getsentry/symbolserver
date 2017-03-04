@@ -149,7 +149,12 @@ fn execute() -> Result<()> {
                 .arg(Arg::with_name("bind_fd")
                      .long("bind-fd")
                      .value_name("FD")
-                     .help("Bind to a specific file descriptor")))
+                     .help("Bind to a specific file descriptor"))
+                .arg(Arg::with_name("threads")
+                     .long("threads")
+                     .short("t")
+                     .value_name("COUNT")
+                     .help("Overrides the default listener thread count")))
         .subcommand(
             SubCommand::with_name("convert-sdk")
                 .about("Converts an SDK into a memdb file")
@@ -233,7 +238,13 @@ fn run_action(config: &Config, matches: &ArgMatches) -> Result<()> {
         api_server.spawn_sync_thread()?;
     }
 
-    api_server.run(if let Some(addr) = matches.value_of("bind") {
+    let threads: usize = if let Some(threads) = matches.value_of("threads") {
+        threads.parse().chain_err(|| "invalid value for threads")?
+    } else {
+        config.get_server_threads()?
+    };
+
+    api_server.run(threads, if let Some(addr) = matches.value_of("bind") {
         BindOptions::BindToAddr(addr)
     } else if let Some(fd) = matches.value_of("bind_fd") {
         BindOptions::BindToFd(fd.parse().chain_err(|| "invalid value for file descriptor")?)

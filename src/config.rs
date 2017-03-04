@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::io::BufReader;
 
+use num_cpus;
 use serde_yaml;
 use url::Url;
 use rusoto::Region;
@@ -27,6 +28,7 @@ struct ServerConfig {
     port: Option<u16>,
     healthcheck_ttl: Option<u32>,
     sync_interval: Option<u32>,
+    threads: Option<usize>,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -165,6 +167,13 @@ impl Config {
         } else {
             Ok(Duration::seconds(ttl as i64))
         }
+    }
+
+    /// Return the number of threads to listen on
+    pub fn get_server_threads(&self) -> Result<usize> {
+        Ok(self.server.threads.unwrap_or_else(|| {
+            num_cpus::get() * 5 / 4
+        }))
     }
 
     /// Return the log level filter

@@ -40,6 +40,7 @@ md5 = "^0.3.3"
 log = "^0.3.6"
 rustc-serialize = "0.3.22"
 if_chain = "^0.1.2"
+num_cpus = "^1.2.1"
 # We use our own version for now because of
 #   https://github.com/rusoto/rusoto/pull/569
 rusoto = { git = "https://github.com/mitsuhiko/rusoto", features = ["s3"] }

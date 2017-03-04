@@ -89,7 +89,7 @@ impl ApiServer {
         Ok(())
     }
 
-    pub fn run(&self, opts: BindOptions) -> Result<()> {
+    pub fn run(&self, threads: usize, opts: BindOptions) -> Result<()> {
         let debug_addr;
         let listener = match opts {
             BindOptions::BindToAddr(addr) => {
@@ -112,7 +112,7 @@ impl ApiServer {
 
         let ctx = self.ctx.clone();
         Server::new(listener)
-            .handle(move |req: Request, resp: Response|
+            .handle_threads(move |req: Request, resp: Response|
         {
             let handler = match req.uri {
                 RequestUri::AbsolutePath(ref path) => {
@@ -128,7 +128,7 @@ impl ApiServer {
                 Ok(result) => result,
                 Err(err) => ApiResponse::from_error(err).unwrap(),
             }.write_to_response(resp).unwrap();
-        })?;
+        }, threads)?;
         Ok(())
     }
 }
