@@ -363,4 +363,23 @@ impl MemDbStash {
             Err(ErrorKind::UnknownSdk.into())
         }
     }
+
+    /// Given an SDK info this returns an array of fuzzy matches for it.
+    pub fn fuzzy_match_sdk_id(&self, sdk_id: &str) -> Result<Vec<SdkInfo>> {
+        let local_state = self.read_local_state()?;
+        let mut rv = vec![];
+
+        if let Some(sdk_info) = SdkInfo::from_filename(sdk_id) {
+            // find all sdks that have a fuzzy match
+            for other in local_state.sdks() {
+                if let Some(quality) = other.info().get_fuzzy_match(&sdk_info) {
+                    rv.push((quality, other.info().clone()));
+                }
+            }
+        }
+
+        rv.sort_by_key(|&(q, _)| q);
+
+        Ok(rv.into_iter().map(|(_, info)| info).collect())
+    }
 }

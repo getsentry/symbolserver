@@ -198,6 +198,23 @@ impl SdkInfo {
                 self.version_patchlevel,
                 self.build.as_ref().map(|x| format!("_{}", x)).unwrap_or("".into()))
     }
+
+    /// Checks if this fuzzy matches another sdk.
+    pub fn get_fuzzy_match(&self, other: &SdkInfo) -> Option<u32> {
+        // this is the minimum match we require
+        if !(self.name == other.name &&
+             self.version_major == other.version_major &&
+             self.version_minor == other.version_minor) {
+            return None;
+        }
+        if self.version_patchlevel != other.version_patchlevel {
+            return Some(2);
+        }
+        if self.build != other.build {
+            return Some(1);
+        }
+        Some(0)
+    }
 }
 
 impl ObjectIterSource {

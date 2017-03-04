@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use super::super::{Result, ErrorKind};
 use super::super::utils::Addr;
+use super::super::memdb::Symbol as MemDbSymbol;
 use super::server::{ServerContext, load_request_data};
 use super::types::{ApiResponse, ApiError};
 
@@ -21,6 +22,17 @@ struct Symbol {
     object_name: Option<String>,
     symbol: Option<String>,
     addr: Addr,
+}
+
+impl<'a> From<MemDbSymbol<'a>> for Symbol {
+    fn from(sym: MemDbSymbol<'a>) -> Symbol {
+        Symbol {
+            object_uuid: Some(sym.object_uuid()),
+            object_name: Some(sym.object_name().to_string()),
+            symbol: Some(sym.symbol().to_string()),
+            addr: Addr(sym.addr()),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -47,41 +59,35 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
     if req.method != Method::Post {
         return Err(ApiError::MethodNotAllowed.into());
     }
-    let data : SymbolLookupRequest = load_request_data(&mut req)?;
 
-    let sdk = match ctx.stash.get_memdb_from_sdk_id(&data.sdk_id) {
-        Ok(sdk) => sdk,
-        Err(err) => {
-            if let &ErrorKind::UnknownSdk = err.kind() {
-                return Err(ApiError::SdkNotFound.into());
-            } else {
-                return Err(err)
-            }
-        },
-    };
+    let data: SymbolLookupRequest = load_request_data(&mut req)?;
+    let sdk_infos = ctx.stash.fuzzy_match_sdk_id(&data.sdk_id)?;
+    if sdk_infos.is_empty() {
+        return Err(ApiError::SdkNotFound.into());
+    }
 
     let mut rv = vec![];
     for symq in data.symbols {
         let mut rvsym = None;
         if let Some(ref uuid) = symq.object_uuid {
-            if let Some(sym) = sdk.lookup_by_uuid(uuid, symq.addr.into()) {
-                rvsym = Some(sym);
+            for sdk_info in sdk_infos.iter() {
+                let sdk = ctx.stash.get_memdb(&sdk_info)?;
+                if let Some(sym) = sdk.lookup_by_uuid(uuid, symq.addr.into()) {
+                    rvsym = Some(sym.into());
+                    break;
+                }
             }
         } else if let Some(ref name) = symq.object_name {
-            if let Some(sym) = sdk.lookup_by_object_name(
-                name, &data.cpu_name, symq.addr.into())
-            {
-                rvsym = Some(sym);
+            for sdk_info in sdk_infos.iter() {
+                let sdk = ctx.stash.get_memdb(&sdk_info)?;
+                if let Some(sym) = sdk.lookup_by_object_name(
+                   name, &data.cpu_name, symq.addr.into()) {
+                    rvsym = Some(sym.into());
+                    break;
+                }
             }
         }
-        rv.push(rvsym.map(|sym| {
-            Symbol {
-                object_uuid: Some(sym.object_uuid()),
-                object_name: Some(sym.object_name().to_string()),
-                symbol: Some(sym.symbol().to_string()),
-                addr: Addr(sym.addr()),
-            }
-        }));
+        rv.push(rvsym);
     }
 
     ApiResponse::new(SymbolResponse {

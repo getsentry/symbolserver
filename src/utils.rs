@@ -12,6 +12,7 @@ use serde::{Serialize, Deserialize, de, ser};
 
 use super::{Result};
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Addr(pub u64);
 pub struct HumanDuration(pub Duration);
 
