@@ -312,6 +312,7 @@ impl MemDbStash {
         for local_filename in to_delete.iter() {
             if let Some(sdk) = local_state.get_sdk(local_filename) {
                 self.remove_sdk(sdk, &options)?;
+                self.memdbs.write().unwrap().remove(&sdk.info());
             }
         }
 
@@ -335,6 +336,12 @@ impl MemDbStash {
     /// might try to unload the memdb if no longer needed.  If the MemDb
     /// does not exist, a `UnknownSdk` error is returned.
     pub fn get_memdb(&self, info: &SdkInfo) -> Result<Arc<MemDb<'static>>> {
+        // try to fetch it from the local mapping.  The sync method will
+        // remove it from here automatically.
+        if let Some(arc) = self.memdbs.read().unwrap().get(info) {
+            return Ok(arc.clone());
+        }
+
         let local_state = self.get_local_state()?;
         let filename = info.memdb_filename();
 
@@ -343,9 +350,6 @@ impl MemDbStash {
         // we might start to consider things that are not available yet or
         // not available any longer.
         if local_state.get_sdk(&filename).is_some() {
-            if let Some(arc) = self.memdbs.read().unwrap().get(info) {
-                return Ok(arc.clone());
-            }
             let memdb = MemDb::from_path(self.path.join(&filename))?;
             self.memdbs.write().unwrap().insert(info.clone(), Arc::new(memdb));
             if let Some(arc) = self.memdbs.read().unwrap().get(info) {
