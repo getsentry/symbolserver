@@ -3,7 +3,7 @@ use std::str::from_utf8;
 
 use uuid::Uuid;
 
-use super::sdk::SdkInfo;
+use super::super::sdk::SdkInfo;
 
 
 /// The stored memdb file header

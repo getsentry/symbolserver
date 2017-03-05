@@ -15,12 +15,12 @@ use serde_json;
 use xz2::write::XzDecoder;
 use chrono::UTC;
 
-use super::config::Config;
-use super::sdk::SdkInfo;
-use super::s3::S3;
-use super::memdb::MemDb;
-use super::utils::{ProgressIndicator, copy_with_progress, HumanDuration};
-use super::{Result, ResultExt, ErrorKind};
+use super::read::MemDb;
+use super::super::config::Config;
+use super::super::sdk::SdkInfo;
+use super::super::s3::S3;
+use super::super::utils::{ProgressIndicator, copy_with_progress, HumanDuration};
+use super::super::{Result, ResultExt, ErrorKind};
 
 /// Helper for synching
 pub struct SyncOptions {

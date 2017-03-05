@@ -15,10 +15,10 @@ use std::fmt;
 use uuid::Uuid;
 use memmap::{Mmap, Protection};
 
-use super::{Result, ErrorKind};
-use super::sdk::SdkInfo;
-use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
-use super::utils::binsearch_by_key;
+use super::types::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
+use super::super::{Result, ErrorKind};
+use super::super::sdk::SdkInfo;
+use super::super::utils::binsearch_by_key;
 
 
 enum Backing<'a> {

@@ -12,7 +12,7 @@ use log;
 use super::{Result, ResultExt, Error};
 use super::sdk::{Sdk, DumpOptions};
 use super::config::Config;
-use super::memdbstash::{MemDbStash, SyncOptions};
+use super::memdb::stash::{MemDbStash, SyncOptions};
 use super::api::server::{ApiServer, BindOptions};
 
 struct SimpleLogger<W: ?Sized> {

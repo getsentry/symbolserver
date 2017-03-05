@@ -16,7 +16,7 @@ use url::Url;
 
 use super::sdk::SdkInfo;
 use super::config::Config;
-use super::memdbstash::RemoteSdk;
+use super::memdb::stash::RemoteSdk;
 use super::{Result, ResultExt};
 
 struct FlexibleCredentialsProvider {

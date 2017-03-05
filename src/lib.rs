@@ -35,14 +35,11 @@ pub use errors::{Result, Error, ErrorKind, ResultExt};
 
 pub mod macros;
 pub mod errors;
-pub mod memdbdump;
-pub mod memdbtypes;
-pub mod memdbstash;
+pub mod memdb;
 pub mod utils;
 pub mod config;
 pub mod s3;
 pub mod cli;
 pub mod dsym;
 pub mod sdk;
-pub mod memdb;
 pub mod api;

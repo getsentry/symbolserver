@@ -15,11 +15,11 @@ use uuid::Uuid;
 use xz2::write::XzEncoder;
 use tempfile::tempfile;
 
-use super::Result;
-use super::sdk::{SdkInfo, DumpOptions, Objects};
-use super::dsym::{Object, Variant};
-use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
-use super::utils::{file_size_format, ProgressIndicator, copy_with_progress};
+use super::types::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
+use super::super::Result;
+use super::super::sdk::{SdkInfo, DumpOptions, Objects};
+use super::super::dsym::{Object, Variant};
+use super::super::utils::{file_size_format, ProgressIndicator, copy_with_progress};
 
 
 struct MemDbBuilder<W> {

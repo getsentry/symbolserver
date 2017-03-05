@@ -10,8 +10,8 @@ use uuid::Uuid;
 use super::super::Result;
 use super::super::utils::Addr;
 use super::super::sdk::SdkInfo;
-use super::super::memdb::{MemDb, Symbol as MemDbSymbol};
-use super::super::memdbstash::MemDbStash;
+use super::super::memdb::read::{MemDb, Symbol as MemDbSymbol};
+use super::super::memdb::stash::MemDbStash;
 use super::server::{ServerContext, load_request_data};
 use super::types::{ApiResponse, ApiError};
 

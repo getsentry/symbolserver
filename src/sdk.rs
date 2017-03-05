@@ -11,7 +11,7 @@ use mach_object::Error as MachError;
 
 use super::{Result, Error, ErrorKind};
 use super::dsym::Object;
-use super::memdbdump::dump_memdb;
+use super::memdb::write::dump_memdb;
 
 
 enum ObjectIterSource {
