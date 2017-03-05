@@ -22,7 +22,7 @@ use super::memdbtypes::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
 use super::utils::{file_size_format, ProgressIndicator, copy_with_progress};
 
 
-pub struct MemDbBuilder<W> {
+struct MemDbBuilder<W> {
     writer: RefCell<W>,
     tempfile: Option<RefCell<File>>,
     info: SdkInfo,
@@ -304,6 +304,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
     }
 }
 
+/// Dumps objects into a writer
 pub fn dump_memdb<W: Write + Seek>(writer: W, info: &SdkInfo,
                                    opts: DumpOptions, objects: Objects)
     -> Result<()>

@@ -1,3 +1,4 @@
+//! Implements the API server.
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::io::Read;
@@ -19,25 +20,32 @@ use super::super::utils::{HumanDuration, run_isolated};
 use super::handlers::{healthcheck_handler, lookup_symbol_handler};
 use super::types::{ApiResponse, ApiError};
 
+/// Result from a healthcheck.
 #[derive(Serialize, Clone)]
 pub struct HealthCheckResponse {
     pub is_healthy: bool,
     pub sync_lag: u32,
 }
 
+/// Shared access to the state of the server.
 pub struct ServerContext {
     pub config: Config,
     pub stash: MemDbStash,
     cached_memdb_status: Mutex<Option<(DateTime<UTC>, u64, HealthCheckResponse)>>,
 }
 
+/// The API server itself.
 pub struct ApiServer {
     ctx: Arc<ServerContext>,
 }
 
+/// Controls how the server binds to sockets.
 pub enum BindOptions<'a> {
+    /// Bind according to the config file.
     UseConfig,
+    /// Bind to a file descriptor.
     BindToFd(RawFd),
+    /// Bind to a specific address (`host:port`).
     BindToAddr(&'a str),
 }
 
@@ -61,6 +69,7 @@ impl ServerContext {
 }
 
 impl ApiServer {
+    /// Create a new server.
     pub fn new(config: &Config) -> Result<ApiServer> {
         Ok(ApiServer {
             ctx: Arc::new(ServerContext {
@@ -71,6 +80,7 @@ impl ApiServer {
         })
     }
 
+    /// Spawns a background thread that runs the sync process.
     pub fn spawn_sync_thread(&self) -> Result<()> {
         let interval = self.ctx.config.get_server_sync_interval()?;
         let std_interval = interval.to_std().unwrap();
@@ -89,6 +99,7 @@ impl ApiServer {
         Ok(())
     }
 
+    /// Runs the server in a loop.
     pub fn run(&self, threads: usize, opts: BindOptions) -> Result<()> {
         let debug_addr;
         let listener = match opts {
@@ -133,6 +144,7 @@ impl ApiServer {
     }
 }
 
+/// Helper for the handlers to safely load request data.
 pub fn load_request_data<D: Deserialize>(req: &mut Request) -> Result<D> {
     if let Some(&ContentLength(length)) = req.headers.get() {
         if length > 1024 * 1024 * 2 {

@@ -9,11 +9,13 @@ use serde::Serialize;
 
 use super::super::{Result, Error, ResultExt, ErrorKind};
 
+/// Represents API responses.
 pub struct ApiResponse {
     body: Vec<u8>,
     status: StatusCode,
 }
 
+/// Represents API Errors.
 #[derive(Debug)]
 pub enum ApiError {
     NotFound,
@@ -33,6 +35,7 @@ struct ApiErrorDescription {
 }
 
 impl ApiResponse {
+    /// Creates a new API response.
     pub fn new<S: Serialize>(data: S, status: StatusCode) -> Result<ApiResponse> {
         let mut body : Vec<u8> = vec![];
         serde_json::to_writer(&mut body, &data)
@@ -43,6 +46,7 @@ impl ApiResponse {
         })
     }
 
+    /// Creates an API response from a given error.
     pub fn from_error(err: Error) -> Result<ApiResponse> {
         if_chain! {
             if let &ErrorKind::ApiError(_) = err.kind();
@@ -64,6 +68,7 @@ impl ApiResponse {
         }, StatusCode::InternalServerError)
     }
 
+    /// Writes the API response into a hyper response.
     pub fn write_to_response(&self, mut resp: Response) -> Result<()> {
         *resp.status_mut() = self.status;
         resp.headers_mut().set(ContentType::json());
@@ -73,6 +78,7 @@ impl ApiResponse {
 }
 
 impl ApiError {
+    /// Returns the HTTP status code for this error.
     pub fn get_status(&self) -> StatusCode {
         match *self {
             ApiError::NotFound => StatusCode::NotFound,
@@ -134,6 +140,7 @@ impl ApiError {
         }
     }
 
+    /// Converts the error into a response.
     pub fn into_api_response(self) -> Result<ApiResponse> {
         ApiResponse::new(self.describe(), self.get_status())
     }

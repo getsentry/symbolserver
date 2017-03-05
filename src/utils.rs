@@ -12,8 +12,11 @@ use serde::{Serialize, Deserialize, de, ser};
 
 use super::{Result};
 
+/// Helper for serializing/deserializing addresses in string format
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Addr(pub u64);
+
+/// Helper for formatting durations.
 pub struct HumanDuration(pub Duration);
 
 impl Into<u64> for Addr {
@@ -77,6 +80,10 @@ impl Deserialize for Addr {
     }
 }
 
+/// Helper that runs a function and captures panics.
+///
+/// The function needs to be reasonably protected against panics.  This
+/// might poison mutexes and similar things.
 pub fn run_isolated<F>(f: F)
     where F: FnOnce() -> Result<()>, F: Send
 {

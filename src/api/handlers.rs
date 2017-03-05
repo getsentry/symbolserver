@@ -1,3 +1,4 @@
+//! The handlers for the API endpoints.
 use std::sync::Arc;
 use std::collections::HashMap;
 
@@ -68,6 +69,7 @@ impl<'a> LocalMemDbCache<'a> {
     }
 }
 
+/// Implements the health check.
 pub fn healthcheck_handler(ctx: &ServerContext, req: Request) -> Result<ApiResponse>
 {
     if req.method != Method::Get {
@@ -82,6 +84,7 @@ pub fn healthcheck_handler(ctx: &ServerContext, req: Request) -> Result<ApiRespo
     ApiResponse::new(rv, status)
 }
 
+/// Implements the system symbol lookup.
 pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<ApiResponse>
 {
     if req.method != Method::Post {
