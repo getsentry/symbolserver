@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::collections::HashMap;
+
 use hyper::server::Request;
 use hyper::status::StatusCode;
 use hyper::method::Method;
@@ -5,7 +8,9 @@ use uuid::Uuid;
 
 use super::super::Result;
 use super::super::utils::Addr;
-use super::super::memdb::Symbol as MemDbSymbol;
+use super::super::sdk::SdkInfo;
+use super::super::memdb::{MemDb, Symbol as MemDbSymbol};
+use super::super::memdbstash::MemDbStash;
 use super::server::{ServerContext, load_request_data};
 use super::types::{ApiResponse, ApiError};
 
@@ -40,6 +45,29 @@ struct SymbolResponse {
     symbols: Vec<Option<Symbol>>,
 }
 
+struct LocalMemDbCache<'a> {
+    stash: &'a MemDbStash,
+    cache: HashMap<SdkInfo, Arc<MemDb<'static>>>,
+}
+
+impl<'a> LocalMemDbCache<'a> {
+    pub fn new(stash: &'a MemDbStash) -> LocalMemDbCache<'a> {
+        LocalMemDbCache {
+            stash: stash,
+            cache: HashMap::new(),
+        }
+    }
+
+    pub fn get_memdb(&mut self, info: &SdkInfo) -> Result<Arc<MemDb<'static>>> {
+        if let Some(memdb) = self.cache.get(&info) {
+            return Ok(memdb.clone());
+        }
+        let rv = self.stash.get_memdb(info)?;
+        self.cache.insert(info.clone(), rv.clone());
+        Ok(rv)
+    }
+}
+
 pub fn healthcheck_handler(ctx: &ServerContext, req: Request) -> Result<ApiResponse>
 {
     if req.method != Method::Get {
@@ -66,21 +94,22 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
         return Err(ApiError::SdkNotFound.into());
     }
 
+    let mut lc = LocalMemDbCache::new(&ctx.stash);
+
     let mut rv = vec![];
     for symq in data.symbols {
         let mut rvsym = None;
         if let Some(ref uuid) = symq.object_uuid {
             for sdk_info in sdk_infos.iter() {
-                let sdk = ctx.stash.get_memdb(&sdk_info)?;
-                if let Some(sym) = sdk.lookup_by_uuid(uuid, symq.addr.into()) {
+                if let Some(sym) = lc.get_memdb(sdk_info)?.lookup_by_uuid(
+                   uuid, symq.addr.into()) {
                     rvsym = Some(sym.into());
                     break;
                 }
             }
         } else if let Some(ref name) = symq.object_name {
             for sdk_info in sdk_infos.iter() {
-                let sdk = ctx.stash.get_memdb(&sdk_info)?;
-                if let Some(sym) = sdk.lookup_by_object_name(
+                if let Some(sym) = lc.get_memdb(sdk_info)?.lookup_by_object_name(
                    name, &data.cpu_name, symq.addr.into()) {
                     rvsym = Some(sym.into());
                     break;
