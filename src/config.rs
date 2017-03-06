@@ -2,6 +2,7 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::borrow::Cow;
 use std::io::BufReader;
 
 use num_cpus;
@@ -132,9 +133,11 @@ impl Config {
     }
 
     /// Return the path where symbols are stored.
-    pub fn get_symbol_dir(&self) -> Result<&Path> {
+    pub fn get_symbol_dir<'a>(&'a self) -> Result<Cow<'a, Path>> {
         if let Some(ref path) = self.symbol_dir {
-            Ok(path.as_path())
+            Ok(Cow::Borrowed(path.as_path()))
+        } else if let Ok(dir) = env::var("SYMBOLSERVER_SYMBOL_DIR") {
+            Ok(Cow::Owned(PathBuf::from(dir)))
         } else {
             Err(ErrorKind::MissingConfigKey("symbol_dir").into())
         }

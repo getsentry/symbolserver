@@ -52,4 +52,8 @@ AWS conventions.
 * `AWS_SECRET_ACCESS_KEY`
 * `AWS_SESSION_TOKEN`
 * `AWS_DEFAULT_REGION`
+
+Additionally these are supported:
+
+* `SYMBOLSERVER_SYMBOL_DIR`
 * `http_proxy`
