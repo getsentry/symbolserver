@@ -246,6 +246,14 @@ impl MemDbStash {
         Ok(self.read_local_state()?.revision.unwrap_or(0))
     }
 
+    /// Returns a list of all synched SDKs
+    pub fn list_sdks(&self) -> Result<Vec<SdkInfo>> {
+        let local_state = self.get_local_state()?;
+        Ok(local_state.sdks().map(|sdk| {
+            sdk.info().clone()
+        }).collect())
+    }
+
     /// Checks the local stash against the server
     pub fn get_sync_status(&self) -> Result<SyncStatus> {
         let local_state = self.read_local_state()?;

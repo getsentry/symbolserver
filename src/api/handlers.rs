@@ -46,6 +46,11 @@ struct SymbolResponse {
     symbols: Vec<Option<Symbol>>,
 }
 
+#[derive(Serialize)]
+struct SdksResponse {
+    sdks: Vec<String>,
+}
+
 struct LocalMemDbCache<'a> {
     stash: &'a MemDbStash,
     cache: HashMap<SdkInfo, Arc<MemDb<'static>>>,
@@ -124,5 +129,16 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
 
     ApiResponse::new(SymbolResponse {
         symbols: rv,
+    }, StatusCode::Ok)
+}
+
+/// Lists all found SDKs.
+pub fn list_sdks_handler(ctx: &ServerContext, req: Request) -> Result<ApiResponse>
+{
+    if req.method != Method::Get {
+        return Err(ApiError::MethodNotAllowed.into());
+    }
+    ApiResponse::new(SdksResponse {
+        sdks: ctx.stash.list_sdks()?.into_iter().map(|x| x.sdk_id()).collect(),
     }, StatusCode::Ok)
 }

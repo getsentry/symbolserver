@@ -189,22 +189,33 @@ impl SdkInfo {
         self.build.as_ref().map(|x| &**x)
     }
 
-    /// The memdb filename
-    pub fn memdb_filename(&self) -> String {
+    fn make_id(&self, suffix: &str) -> String {
         if let Some(ref build) = self.build {
-            format!("{}_{}.{}.{}_{}.memdb",
+            format!("{}_{}.{}.{}_{}{}",
                     self.name,
                     self.version_major,
                     self.version_minor,
                     self.version_patchlevel,
-                    build)
+                    build,
+                    suffix)
         } else {
-            format!("{}_{}.{}.{}.memdb",
+            format!("{}_{}.{}.{}{}",
                     self.name,
                     self.version_major,
                     self.version_minor,
-                    self.version_patchlevel)
+                    self.version_patchlevel,
+                    suffix)
         }
+    }
+
+    /// The SDK id as string
+    pub fn sdk_id(&self) -> String {
+        self.make_id("")
+    }
+
+    /// The memdb filename
+    pub fn memdb_filename(&self) -> String {
+        self.make_id(".memdb")
     }
 
     /// Checks if this fuzzy matches another sdk.

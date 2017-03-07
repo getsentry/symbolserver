@@ -17,7 +17,7 @@ use super::super::config::Config;
 use super::super::memdb::stash::MemDbStash;
 use super::super::Result;
 use super::super::utils::{HumanDuration, run_isolated};
-use super::handlers::{healthcheck_handler, lookup_symbol_handler};
+use super::handlers;
 use super::types::{ApiResponse, ApiError};
 
 /// Result from a healthcheck.
@@ -128,8 +128,9 @@ impl ApiServer {
             let handler = match req.uri {
                 RequestUri::AbsolutePath(ref path) => {
                     match path.as_str() {
-                        "/health" => healthcheck_handler,
-                        "/lookup" => lookup_symbol_handler,
+                        "/health" => handlers::healthcheck_handler,
+                        "/lookup" => handlers::lookup_symbol_handler,
+                        "/sdks" => handlers::list_sdks_handler,
                         _ => not_found,
                     }
                 }
