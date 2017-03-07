@@ -10,8 +10,6 @@ matrix:
       env: TARGET=i686-unknown-linux-gnu DOCKER=alexcrichton/rust-slave-dist:2017-02-02
     - os: linux
       env: TARGET=x86_64-unknown-linux-gnu DOCKER=alexcrichton/rust-slave-dist:2017-02-02
-    - os: linux
-      env: TARGET=x86_64-unknown-linux-musl DOCKER=ekidd/rust-musl-builder:latest
 
 install:
   - export PATH="$PATH:$HOME/.cargo/bin"
