@@ -21,6 +21,11 @@ OPENSSL_VERS=1.0.2j
 OPENSSL_SHA256=e7aff292be21c259c6af26469c7a9b3ba26e9abaaffd325e3dccc9785256c431
 
 case $TARGET in
+  x86_64-*-linux-musl)
+    OPENSSL_OS=linux-x86_64
+    OPENSSL_CC=musl-gcc
+    OPENSSL_AR=ar
+    ;;
   x86_64-*-linux-*)
     OPENSSL_OS=linux-x86_64
     OPENSSL_CC=gcc
