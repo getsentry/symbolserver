@@ -3,6 +3,9 @@
 
 set -ex
 
+# dummy c++ compiler :)
+export CXX=true
+
 # TODO This is the "test phase", tweak it as you see fit
 main() {
     cross build --target $TARGET
