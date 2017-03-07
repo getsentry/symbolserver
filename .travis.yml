@@ -1,41 +1,31 @@
 language: generic
-sudo: required
 dist: trusty
+sudo: required
 services:
   - docker
 
 matrix:
   include:
-    - os: linux
-      env: TARGET=i686-unknown-linux-gnu DOCKER=alexcrichton/rust-slave-dist:2017-02-02
-    - os: linux
-      env: TARGET=x86_64-unknown-linux-gnu DOCKER=alexcrichton/rust-slave-dist:2017-02-02
+    - env: TARGET=i686-unknown-linux-gnu
+    - env: TARGET=i686-unknown-linux-musl
+    - env: TARGET=x86_64-unknown-linux-gnu
+    - env: TARGET=x86_64-unknown-linux-musl
+
+before_install: set -e
 
 install:
-  - export PATH="$PATH:$HOME/.cargo/bin"
-  - bash .ci/install.sh
+  - sh .ci/install.sh
+  - source ~/.cargo/env || true
 
 script:
-  - mkdir -p target
-  - if [ ! -z "$DOCKER" ]; then
-      docker run
-        --entrypoint bash
-        -u `id -u`:`id -g`
-        -v $HOME/rust:/travis-rust:ro
-        -v `pwd`:/buildslave:ro
-        -v `pwd`/target:/buildslave/target
-        -e TARGET=$TARGET
-        -e SKIP_TESTS=$SKIP_TESTS
-        -it $DOCKER
-        .ci/build-docker.sh;
-    else
-      PATH=$HOME/rust/bin:$PATH sh .ci/build.sh;
-    fi
+  - bash .ci/build.sh
 
-cache:
-  directories:
-    - $HOME/.cargo
-    - $TRAVIS_BUILD_DIR/target
+after_script: set +e
+
+cache: cargo
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
 
 deploy:
   provider: script
