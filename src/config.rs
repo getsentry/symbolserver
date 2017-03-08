@@ -88,7 +88,7 @@ impl Config {
 
     /// Return the AWS S3 bucket URL
     pub fn get_aws_bucket_url<'a>(&'a self) -> Result<Url> {
-        let url = if let Some(value) = self.aws.bucket_url.as_ref() {
+        let url = if let Some(ref value) = self.aws.bucket_url {
             Url::parse(value)?
         } else if let Ok(value) = env::var("AWS_BUCKET_URL") {
             Url::parse(&value)?
