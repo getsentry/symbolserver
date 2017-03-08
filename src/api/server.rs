@@ -23,6 +23,7 @@ use super::types::{ApiResponse, ApiError};
 /// Result from a healthcheck.
 #[derive(Serialize, Clone)]
 pub struct HealthCheckResponse {
+    pub is_offline: bool,
     pub is_healthy: bool,
     pub sync_lag: u32,
 }
@@ -60,6 +61,7 @@ impl ServerContext {
         }
         let state = self.stash.get_sync_status()?;
         let rv = HealthCheckResponse {
+            is_offline: state.is_offline(),
             is_healthy: state.is_healthy(),
             sync_lag: state.lag(),
         };

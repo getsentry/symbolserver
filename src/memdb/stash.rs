@@ -57,6 +57,7 @@ pub struct SyncStatus {
     missing: u32,
     different: u32,
     revision: u64,
+    offline: bool,
 }
 
 impl RemoteSdk {
@@ -110,6 +111,11 @@ impl SdkSyncState {
 
 impl SyncStatus {
 
+    /// Indicates that the server is running offline (no S3 access)
+    pub fn is_offline(&self) -> bool {
+        self.offline
+    }
+
     /// Returns the lag (number of SDKs behind upstream)
     pub fn lag(&self) -> u32 {
         self.missing + self.different
@@ -117,9 +123,13 @@ impl SyncStatus {
 
     /// Returns true if the local sync is still considered healthy
     pub fn is_healthy(&self) -> bool {
-        let total = self.remote_total as f32;
-        let lag = self.lag() as f32;
-        lag / total < 0.10
+        if self.offline {
+            true
+        } else {
+            let total = self.remote_total as f32;
+            let lag = self.lag() as f32;
+            lag / total < 0.10
+        }
     }
 
     /// Returns the revision of the stash
@@ -257,21 +267,25 @@ impl MemDbStash {
     /// Checks the local stash against the server
     pub fn get_sync_status(&self) -> Result<SyncStatus> {
         let local_state = self.read_local_state()?;
-        let remote_state = self.fetch_remote_state()?;
 
         let mut remote_total = 0;
         let mut missing = 0;
         let mut different = 0;
+        let mut offline = false;
 
-        for sdk in remote_state.sdks() {
-            if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
-                if local_sdk != sdk {
-                    different += 1;
+        if let Ok(remote_state) = self.fetch_remote_state() {
+            for sdk in remote_state.sdks() {
+                if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
+                    if local_sdk != sdk {
+                        different += 1;
+                    }
+                } else {
+                    missing += 1;
                 }
-            } else {
-                missing += 1;
+                remote_total += 1;
             }
-            remote_total += 1;
+        } else {
+            offline = true;
         }
 
         Ok(SyncStatus {
@@ -279,6 +293,7 @@ impl MemDbStash {
             missing: missing as u32,
             different: different as u32,
             revision: local_state.revision.unwrap_or(0),
+            offline: offline,
         })
     }
 
