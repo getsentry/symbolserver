@@ -3,11 +3,12 @@ use std::error;
 
 use hyper::server::Response;
 use hyper::status::StatusCode;
-use hyper::header::ContentType;
+use hyper::header::{Server, ContentType};
 use serde_json;
 use serde::Serialize;
 
 use super::super::{Result, Error, ResultExt, ErrorKind};
+use super::super::constants::VERSION;
 
 /// Represents API responses.
 pub struct ApiResponse {
@@ -72,6 +73,7 @@ impl ApiResponse {
     pub fn write_to_response(&self, mut resp: Response) -> Result<()> {
         *resp.status_mut() = self.status;
         resp.headers_mut().set(ContentType::json());
+        resp.headers_mut().set(Server(format!("sentry-symbolserver/{}", VERSION)));
         resp.send(&self.body[..])?;
         Ok(())
     }
