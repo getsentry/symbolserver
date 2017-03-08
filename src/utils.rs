@@ -1,5 +1,6 @@
 //! Provides various useful utilities.
 use std::io;
+use std::fs;
 use std::fmt;
 use std::panic;
 use std::result::Result as StdResult;
@@ -210,6 +211,20 @@ pub fn file_size_format(bytes: usize) -> String {
     bytes.file_size(BINARY)
         .map(|x| x.replace(" ", ""))
         .unwrap_or_else(|_| bytes.to_string())
+}
+
+/// Checks if we are running in docker
+pub fn is_docker() -> bool {
+    if fs::metadata("/.dockerenv").is_ok() {
+        return true;
+    }
+    if let Ok(mut f) = fs::File::open("/proc/self/cgroup") {
+        let mut s = String::new();
+        if f.read_to_string(&mut s).is_ok() && s.find("/docker").is_some() {
+            return true;
+        }
+    }
+    false
 }
 
 /// A quick binary search by key.

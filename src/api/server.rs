@@ -121,7 +121,7 @@ impl ApiServer {
                 let addr = self.ctx.config.get_server_socket_addr()?;
                 let (host, port) = addr;
                 debug_addr = format!("http://{}:{}/", host, port);
-                HttpListener::new((host, port))?
+                HttpListener::new((host.as_str(), port))?
             }
         };
         info!("Listening on {}", debug_addr);

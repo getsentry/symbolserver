@@ -12,7 +12,8 @@ use rusoto::Region;
 use chrono::Duration;
 use log::LogLevelFilter;
 
-use super::{Result, ErrorKind};
+use super::{Result, ResultExt, ErrorKind};
+use super::utils::is_docker;
 
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -150,11 +151,31 @@ impl Config {
         self.symbol_dir = Some(value.as_ref().to_path_buf());
     }
 
+    fn get_server_host(&self) -> Result<String> {
+        if let Some(ref host) = self.server.host {
+            Ok(host.clone())
+        } else if let Ok(var) = env::var("IP") {
+            Ok(var)
+        } else if is_docker() {
+            Ok("0.0.0.0".into())
+        } else {
+            Ok("127.0.0.1".into())
+        }
+    }
+
+    fn get_server_port(&self) -> Result<u16> {
+        if let Some(port) = self.server.port {
+            Ok(port)
+        } else if let Ok(portstr) = env::var("PORT") {
+            Ok(portstr.parse().chain_err(|| "Invalid value for port")?)
+        } else {
+            Ok(3000)
+        }
+    }
+
     /// Return the bind target for the http server
-    pub fn get_server_socket_addr(&self) -> Result<(&str, u16)> {
-        let host = self.server.host.as_ref().map(|x| x.as_str()).unwrap_or("127.0.0.1");
-        let port = self.server.port.unwrap_or(3000);
-        Ok((host, port))
+    pub fn get_server_socket_addr(&self) -> Result<(String, u16)> {
+        Ok((self.get_server_host()?, self.get_server_port()?))
     }
 
     /// Return the server healthcheck ttl
