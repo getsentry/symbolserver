@@ -89,6 +89,8 @@ impl Config {
     pub fn get_aws_bucket_url<'a>(&'a self) -> Result<Url> {
         let url = if let Some(value) = self.aws.bucket_url.as_ref() {
             Url::parse(value)?
+        } else if let Ok(value) = env::var("AWS_BUCKET_URL") {
+            Url::parse(&value)?
         } else {
             return Err(ErrorKind::MissingConfigKey(
                 "aws.bucket_url").into());
