@@ -38,8 +38,7 @@ struct ApiErrorDescription {
 impl ApiResponse {
     /// Creates a new API response.
     pub fn new<S: Serialize>(data: S, status: StatusCode) -> Result<ApiResponse> {
-        let mut body : Vec<u8> = vec![];
-        serde_json::to_writer(&mut body, &data)
+        let mut body = serde_json::to_vec(&data)
             .chain_err(|| "Failed to serialize response for client")?;
         body.push(b'\n');
         Ok(ApiResponse {
@@ -73,8 +72,8 @@ impl ApiResponse {
     /// Writes the API response into a hyper response.
     pub fn write_to_response(&self, mut resp: Response) -> Result<()> {
         *resp.status_mut() = self.status;
-        resp.headers_mut().set(ContentType::json());
         resp.headers_mut().set(Server(format!("sentry-symbolserver/{}", VERSION)));
+        resp.headers_mut().set(ContentType::json());
         resp.send(&self.body[..])?;
         Ok(())
     }
