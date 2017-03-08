@@ -12,6 +12,7 @@ use log;
 use super::{Result, ResultExt, Error};
 use super::sdk::{Sdk, DumpOptions};
 use super::config::Config;
+use super::constants::VERSION;
 use super::memdb::stash::{MemDbStash, SyncOptions};
 use super::api::server::{ApiServer, BindOptions};
 
@@ -112,6 +113,7 @@ fn config_from_matches(matches: &ArgMatches) -> Result<Config> {
 
 fn execute() -> Result<()> {
     let app = App::new("sentry-symbolserver")
+        .version(VERSION)
         .about("This tool implements an Apple SDK processor and server.")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .setting(AppSettings::ColorNever)
