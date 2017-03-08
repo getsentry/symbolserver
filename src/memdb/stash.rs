@@ -107,6 +107,10 @@ impl SdkSyncState {
     pub fn sdks<'a>(&'a self) -> RemoteSdkIter<'a> {
         self.sdks.values()
     }
+
+    pub fn sdk_count(&self) -> usize {
+        self.sdks.len()
+    }
 }
 
 impl SyncStatus {
@@ -254,6 +258,11 @@ impl MemDbStash {
     /// Returns the current revision
     pub fn get_revision(&self) -> Result<u64> {
         Ok(self.read_local_state()?.revision.unwrap_or(0))
+    }
+
+    /// Returns the number of local SDKs
+    pub fn sdk_count(&self) -> Result<usize> {
+        Ok(self.get_local_state()?.sdk_count())
     }
 
     /// Returns a list of all synched SDKs

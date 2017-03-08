@@ -89,6 +89,8 @@ impl ApiServer {
         let std_interval = interval.to_std().unwrap();
         info!("Checking for symbols from S3 in background every {}",
               HumanDuration(interval));
+        info!("Source Bucket: {}", self.ctx.config.get_aws_bucket_url()?);
+        info!("Local SDKs: {}", self.ctx.stash.sdk_count()?);
 
         let ctx = self.ctx.clone();
         thread::spawn(move || {
