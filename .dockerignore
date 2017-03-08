@@ -1,0 +1,6 @@
+.git
+.cache
+.dockerignore
+.cargo
+target
+symbols

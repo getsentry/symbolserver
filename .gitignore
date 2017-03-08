@@ -3,3 +3,4 @@ target
 *.memdb
 *.memdbz
 symbolserver.yml
+symbols
