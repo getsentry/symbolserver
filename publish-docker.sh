@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eu
 
-aliases='0 latest'
+aliases='1 1.0 latest'
 tag='getsentry/symbolserver'
 
 fullVersion=$(awk '$1 == "ENV" && $2 == "SYMBOLSERVER_VERSION" { print $3; exit }' Dockerfile)

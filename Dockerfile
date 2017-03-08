@@ -32,9 +32,9 @@ RUN set -x \
     && tini -h \
     && apt-get purge -y --auto-remove wget
 
-ENV SYMBOLSERVER_VERSION 0.1
-ENV SYMBOLSERVER_DOWNLOAD_URL https://github.com/getsentry/symbolserver/releases/download/0.1/sentry-symbolserver-Linux-x86_64
-ENV SYMBOLSERVER_DOWNLOAD_SHA256 261d5886aabae25ff7cca1dd30ba98cc30288fe867bbdee8feeba7f5c886bdfc
+ENV SYMBOLSERVER_VERSION 1.0.0
+ENV SYMBOLSERVER_DOWNLOAD_URL https://github.com/getsentry/symbolserver/releases/download/1.0.0/sentry-symbolserver-Linux-x86_64
+ENV SYMBOLSERVER_DOWNLOAD_SHA256 1fee3a38f85c7bc25ffa14a5db3267db7c00250fb1b82381e25308052e9dd30a
 
 RUN set -ex \
     && apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/* \
@@ -43,8 +43,13 @@ RUN set -ex \
     && chmod +x /usr/local/bin/symbolserver \
     && apt-get purge -y --auto-remove wget
 
+ENV SYMBOLSERVER_SYMBOL_DIR /var/lib/symbolserver
+
+RUN mkdir -p $SYMBOLSERVER_SYMBOL_DIR
+
 COPY docker-entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["docker-entrypoint.sh"]
 
 EXPOSE 3000
+VOLUME /var/lib/symbolserver
 CMD [ "symbolserver" ]
