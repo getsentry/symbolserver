@@ -6,13 +6,11 @@ services:
 
 matrix:
   include:
-    - env: TARGET=i686-unknown-linux-gnu DISABLE_TESTS=1
     - env: TARGET=x86_64-unknown-linux-gnu DISABLE_TESTS=1
     # musl targets are currently disabled because compiling ring fails
     # due to ring requirig a c++ compiler which is unavailable through
     # cross on musl targets: https://github.com/briansmith/ring/issues/477
     ##- env: TARGET=x86_64-unknown-linux-musl DISABLE_TESTS=1
-    ##- env: TARGET=i686-unknown-linux-musl DISABLE_TESTS=1
 
 before_install: set -e
 
