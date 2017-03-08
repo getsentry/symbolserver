@@ -6,7 +6,8 @@ use std::io::{Read, Cursor};
 
 use rusoto::{ProvideAwsCredentials, AwsCredentials, CredentialsError,
              ChainProvider};
-use rusoto::s3::{S3Client, ListObjectsRequest, GetObjectRequest, Object};
+use rusoto::s3::{S3Client, ListObjectsRequest, GetObjectRequest, Object,
+                 ListObjectsError};
 use chrono::{Duration, UTC};
 use hyper::client::{Client as HyperClient, ProxyConfig};
 use hyper::client::RedirectPolicy;
@@ -17,7 +18,7 @@ use url::Url;
 use super::sdk::SdkInfo;
 use super::config::Config;
 use super::memdb::stash::RemoteSdk;
-use super::{Result, ResultExt};
+use super::{ErrorKind, Result, ResultExt};
 
 struct FlexibleCredentialsProvider {
     chain_provider: ChainProvider,
@@ -130,8 +131,21 @@ impl S3 {
         let mut request = ListObjectsRequest::default();
         request.bucket = self.bucket_name().into();
         request.prefix = Some(self.bucket_prefix());
-        let out = self.client.list_objects(&request)
-            .chain_err(|| "Failed to fetch SDKs from S3")?;
+
+        // this is the only place where we currently explicitly check for S3
+        // HTTP errors because realistically that call is always going ot be
+        // the first one that happens.  This gives us better detection in
+        // the health check for raw network errors to better report
+        // downtime.
+        let out = match self.client.list_objects(&request) {
+            Ok(out) => out,
+            Err(ListObjectsError::HttpDispatch(err)) => {
+                return Err(ErrorKind::S3Unavailable(err.to_string()).into());
+            }
+            Err(err) => {
+                return Err(err).chain_err(|| "Failed to fetch SDKs from S3")?;
+            }
+        };
 
         let mut rv = vec![];
         for obj in out.contents.unwrap_or_else(|| vec![]) {
