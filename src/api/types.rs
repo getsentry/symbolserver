@@ -41,6 +41,7 @@ impl ApiResponse {
         let mut body : Vec<u8> = vec![];
         serde_json::to_writer(&mut body, &data)
             .chain_err(|| "Failed to serialize response for client")?;
+        body.push(b'\n');
         Ok(ApiResponse {
             body: body,
             status: status,
