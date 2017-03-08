@@ -273,6 +273,11 @@ impl MemDbStash {
         let mut different = 0;
         let mut offline = false;
 
+        // we actually catch down all errors here to indicate that something
+        // is wrong with S3.  The reason for this is that even though different
+        // types of errors are produced here we do not actually have a good way
+        // to detect an offline state through the errors that rusoto currently
+        // exposes.  For the health check this is probably good enough.
         if let Ok(remote_state) = self.fetch_remote_state() {
             for sdk in remote_state.sdks() {
                 if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
