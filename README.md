@@ -56,5 +56,7 @@ AWS conventions.
 
 Additionally these are supported:
 
+* `IP`
+* `PORT`
 * `SYMBOLSERVER_SYMBOL_DIR`
 * `http_proxy`
