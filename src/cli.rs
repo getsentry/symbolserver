@@ -28,10 +28,14 @@ impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
     fn log(&self, record: &log::LogRecord) {
         let mut f = self.f.lock().unwrap();
         if self.enabled(record.metadata()) {
-            writeln!(f, "[{}] [{}] {}: {}",
+            writeln!(f, "[{}] {} | {}{}",
                      UTC::now(),
-                     record.level(),
                      record.target().split(':').next().unwrap(),
+                     match record.level() {
+                         log::LogLevel::Error => "ERROR: ",
+                         log::LogLevel::Warn => "WARNING: ",
+                         _ => "",
+                     },
                      record.args()).ok();
         }
     }
