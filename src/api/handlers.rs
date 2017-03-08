@@ -30,6 +30,15 @@ struct Symbol {
     addr: Addr,
 }
 
+macro_rules! assert_method {
+    ($req:expr, $method:expr) => {
+        if !($req.method == $method || ($method == Method::Get &&
+                                        $req.method == Method::Head)) {
+            return Err(ApiError::MethodNotAllowed.into());
+        }
+    }
+}
+
 impl<'a> From<MemDbSymbol<'a>> for Symbol {
     fn from(sym: MemDbSymbol<'a>) -> Symbol {
         Symbol {
@@ -77,9 +86,7 @@ impl<'a> LocalMemDbCache<'a> {
 /// Implements the health check.
 pub fn healthcheck_handler(ctx: &ServerContext, req: Request) -> Result<ApiResponse>
 {
-    if req.method != Method::Get {
-        return Err(ApiError::MethodNotAllowed.into());
-    }
+    assert_method!(req, Method::Get);
     let rv = ctx.check_health()?;
     let status = if rv.is_healthy {
         StatusCode::Ok
@@ -92,10 +99,7 @@ pub fn healthcheck_handler(ctx: &ServerContext, req: Request) -> Result<ApiRespo
 /// Implements the system symbol lookup.
 pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<ApiResponse>
 {
-    if req.method != Method::Post {
-        return Err(ApiError::MethodNotAllowed.into());
-    }
-
+    assert_method!(req, Method::Post);
     let data: SymbolLookupRequest = load_request_data(&mut req)?;
     let sdk_infos = ctx.stash.fuzzy_match_sdk_id(&data.sdk_id)?;
     if sdk_infos.is_empty() {
@@ -135,9 +139,7 @@ pub fn lookup_symbol_handler(ctx: &ServerContext, mut req: Request) -> Result<Ap
 /// Lists all found SDKs.
 pub fn list_sdks_handler(ctx: &ServerContext, req: Request) -> Result<ApiResponse>
 {
-    if req.method != Method::Get {
-        return Err(ApiError::MethodNotAllowed.into());
-    }
+    assert_method!(req, Method::Get);
     ApiResponse::new(SdksResponse {
         sdks: ctx.stash.list_sdks()?.into_iter().map(|x| x.sdk_id()).collect(),
     }, StatusCode::Ok)

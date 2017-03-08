@@ -7,6 +7,7 @@ use std::os::unix::io::{FromRawFd, RawFd};
 use libc;
 use hyper::server::{Server, Request, Response};
 use hyper::header::ContentLength;
+use hyper::method::Method;
 use hyper::net::HttpListener;
 use hyper::uri::RequestUri;
 use chrono::{DateTime, UTC};
@@ -127,6 +128,7 @@ impl ApiServer {
         Server::new(listener)
             .handle_threads(move |req: Request, resp: Response|
         {
+            let is_head = req.method == Method::Head;
             let handler = match req.uri {
                 RequestUri::AbsolutePath(ref path) => {
                     match path.as_str() {
@@ -141,7 +143,7 @@ impl ApiServer {
             match handler(&*ctx.clone(), req) {
                 Ok(result) => result,
                 Err(err) => ApiResponse::from_error(err).unwrap(),
-            }.write_to_response(resp).unwrap();
+            }.write_to_response(is_head, resp).unwrap();
         }, threads)?;
         Ok(())
     }
