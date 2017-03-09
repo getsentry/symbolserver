@@ -48,15 +48,17 @@ log:
 The following environment variables are picked up in accordance with
 AWS conventions.
 
-* `AWS_ACCESS_KEY_ID`
-* `AWS_SECRET_ACCESS_KEY`
-* `AWS_SESSION_TOKEN`
-* `AWS_DEFAULT_REGION`
-* `AWS_BUCKET_URL` (custom extension)
+* `AWS_ACCESS_KEY_ID` (overrides `aws.access_key`)
+* `AWS_SECRET_ACCESS_KEY` (overrides `aws.secret_key`)
+* `AWS_SESSION_TOKEN` (no config equivalent)
+* `AWS_DEFAULT_REGION` (used if `aws.region` is not set)
 
-Additionally these are supported:
+Symbolserver specific variables:
 
-* `IP`
-* `PORT`
-* `SYMBOLSERVER_SYMBOL_DIR`
-* `http_proxy`
+* `AWS_BUCKET_URL` (custom extension, overrides `aws.bucket_url`)
+* `SYMBOL_DIR` (used if `symbol_dir` is not set)
+
+Additionally these well known variables are supported:
+
+* `IP` and `PORT` (used as a default for `run --bind`)
+* `http_proxy` (no config equivalent)
