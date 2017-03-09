@@ -17,7 +17,7 @@ use serde_json;
 use super::super::config::Config;
 use super::super::memdb::stash::MemDbStash;
 use super::super::Result;
-use super::super::utils::{HumanDuration, run_isolated};
+use super::super::utils::{HumanDuration, run_isolated, get_systemd_fd};
 use super::handlers;
 use super::types::{ApiResponse, ApiError};
 
@@ -118,10 +118,18 @@ impl ApiServer {
                 unsafe { HttpListener::from_raw_fd(libc::dup(fd)) }
             }
             BindOptions::UseConfig => {
-                let addr = self.ctx.config.get_server_socket_addr()?;
-                let (host, port) = addr;
-                debug_addr = format!("http://{}:{}/", host, port);
-                HttpListener::new((host.as_str(), port))?
+                if let Some(fd) = get_systemd_fd()? {
+                    debug_addr = format!("systemd supplied fd");
+                    // unsafe is sortof okay here because get_systemd_fd will
+                    // not return the fd a second time and we also do not pass
+                    // that information to potential children
+                    unsafe { HttpListener::from_raw_fd(fd) }
+                } else {
+                    let addr = self.ctx.config.get_server_socket_addr()?;
+                    let (host, port) = addr;
+                    debug_addr = format!("http://{}:{}/", host, port);
+                    HttpListener::new((host.as_str(), port))?
+                }
             }
         };
         info!("Listening on {}", debug_addr);

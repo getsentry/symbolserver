@@ -2,7 +2,9 @@
 use std::io;
 use std::fs;
 use std::fmt;
+use std::env;
 use std::panic;
+use std::os::unix::io::RawFd;
 use std::result::Result as StdResult;
 use std::io::{Read, Write};
 use std::sync::Mutex;
@@ -11,7 +13,9 @@ use pbr;
 use chrono::Duration;
 use serde::{Serialize, Deserialize, de, ser};
 
-use super::{Result};
+use super::{Result, ResultExt, Error, ErrorKind};
+
+pub const SD_LISTEN_FDS_START: RawFd = 3;
 
 /// Helper for serializing/deserializing addresses in string format
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -225,6 +229,29 @@ pub fn is_docker() -> bool {
         }
     }
     false
+}
+
+/// Returns a single systemd socket fd if there is one.
+pub fn get_systemd_fd() -> Result<Option<RawFd>> {
+    let var = match env::var("LISTEN_FDS") {
+        Ok(var) => {
+            if &var == "0" || &var == "" {
+                return Ok(None);
+            }
+            var
+        }
+        Err(_) => { return Ok(None); }
+    };
+
+    let fds : u32 = var.parse().chain_err(
+        || Error::from(ErrorKind::BadEnvVar("LISTEN_FDS", "Not an integer")))?;
+    if fds != 1 {
+        return Err(ErrorKind::BadEnvVar(
+            "LISTEN_FDS", "Exactly one socket needs to be passed").into());
+    }
+
+    env::remove_var("LISTEN_FDS");
+    Ok(Some(SD_LISTEN_FDS_START))
 }
 
 /// A quick binary search by key.

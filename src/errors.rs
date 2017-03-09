@@ -45,6 +45,10 @@ error_chain! {
             description("encountered a missing config key")
             display("encountered missing config key '{}'", path)
         }
+        BadEnvVar(path: &'static str, msg: &'static str) {
+            description("bad environment variable")
+            display("bad environment variable '{}': {}", path, msg)
+        }
         S3Unavailable(msg: String) {
             description("S3 is unavailable")
             display("S3 is unavailable: {}", msg)

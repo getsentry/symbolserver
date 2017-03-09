@@ -64,4 +64,5 @@ Symbolserver specific variables:
 Additionally these well known variables are supported:
 
 * `IP` and `PORT` (used as a default for `run --bind`)
+* `LISTEN_FDS` (used as default for `run --bind-fd` in systemd style. eg: listens on FD 3)
 * `http_proxy` (no config equivalent)
