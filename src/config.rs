@@ -28,8 +28,8 @@ struct AwsConfig {
 struct ServerConfig {
     host: Option<String>,
     port: Option<u16>,
-    healthcheck_ttl: Option<u32>,
-    sync_interval: Option<u32>,
+    healthcheck_ttl: Option<i64>,
+    sync_interval: Option<i64>,
     threads: Option<usize>,
 }
 
@@ -180,19 +180,34 @@ impl Config {
 
     /// Return the server healthcheck ttl
     pub fn get_server_healthcheck_ttl(&self) -> Result<Duration> {
-        let ttl = self.server.healthcheck_ttl.unwrap_or(60);
-        Ok(Duration::seconds(ttl as i64))
+        let ttl = if let Some(ttl) = self.server.healthcheck_ttl {
+            ttl
+        } else if let Ok(ttlstr) = env::var("SYMBOLSERVER_HEALTHCHECK_TTL") {
+            ttlstr.parse().chain_err(|| "Invalid value for healthcheck ttl")?
+        } else {
+            return Ok(Duration::minutes(2));
+        };
+        if ttl < 0 {
+            return Err(ErrorKind::BadConfigKey(
+                "server.healthcheck_ttl", "Healthcheck TTL has to be positive").into());
+        }
+        Ok(Duration::seconds(ttl))
     }
 
     /// Return the server sync interval
     pub fn get_server_sync_interval(&self) -> Result<Duration> {
-        let ttl = self.server.sync_interval.unwrap_or(60);
-        if ttl <= 0 {
-            Err(ErrorKind::BadConfigKey(
-                "server.sync_interval", "Sync interval has to be positive").into())
+        let interval = if let Some(interval) = self.server.sync_interval {
+            interval
+        } else if let Ok(intervalstr) = env::var("SYMBOLSERVER_SYNC_INTERVAL") {
+            intervalstr.parse().chain_err(|| "Invalid value for sync interval")?
         } else {
-            Ok(Duration::seconds(ttl as i64))
+            return Ok(Duration::minutes(1));
+        };
+        if interval < 0 {
+            return Err(ErrorKind::BadConfigKey(
+                "server.sync_interval", "Sync interval has to be positive").into());
         }
+        Ok(Duration::seconds(interval))
     }
 
     /// Return the number of threads to listen on
