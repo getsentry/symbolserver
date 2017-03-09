@@ -43,9 +43,9 @@ RUN set -ex \
     && chmod +x /usr/local/bin/symbolserver \
     && apt-get purge -y --auto-remove wget
 
-ENV SYMBOLSERVER_SYMBOL_DIR /var/lib/symbolserver
+ENV SYMBOL_DIR /var/lib/symbolserver
 
-RUN mkdir -p $SYMBOLSERVER_SYMBOL_DIR
+RUN mkdir -p $SYMBOL_DIR
 
 COPY docker-entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["docker-entrypoint.sh"]
