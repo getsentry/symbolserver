@@ -50,7 +50,7 @@ fn get_sdk_name_from_folder(folder: &str) -> Option<&'static str> {
 }
 
 /// Information of the SDK
-#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Deserialize, Serialize, Hash)]
 pub struct SdkInfo {
     name: String,
     version_major: u32,

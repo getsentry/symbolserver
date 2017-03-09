@@ -268,9 +268,11 @@ impl MemDbStash {
     /// Returns a list of all synched SDKs
     pub fn list_sdks(&self) -> Result<Vec<SdkInfo>> {
         let local_state = self.get_local_state()?;
-        Ok(local_state.sdks().map(|sdk| {
+        let mut rv : Vec<_> = local_state.sdks().map(|sdk| {
             sdk.info().clone()
-        }).collect())
+        }).collect();
+        rv.sort();
+        Ok(rv)
     }
 
     /// Checks the local stash against the server
