@@ -62,6 +62,7 @@ Symbolserver specific variables:
 * `SYMBOLSERVER_LOG_LEVEL` (used if `log.level` is not set)
 * `SYMBOLSERVER_HEALTHCHECK_TTL` (used if `server.healthcheck_ttl` is not set)
 * `SYMBOLSERVER_SYNC_INTERVAL` (used if `server.sync_interval` is not set)
+* `SYMBOLSERVER_THREADS` (used as a default for `run --threads`)
 
 Additionally these well known variables are supported:
 
