@@ -204,7 +204,12 @@ impl Config {
 
     /// Return the log level filter
     pub fn get_log_level_filter(&self) -> Result<LogLevelFilter> {
-        if let Some(ref lvl) = self.log.level {
+        let level_opt = self.log.level
+            .as_ref()
+            .map(|x| x.to_string())
+            .or_else(|| env::var("SYMBOLSERVER_LOG_LEVEL").ok());
+
+        if let Some(lvl) = level_opt {
             lvl.parse().map_err(|_| ErrorKind::BadConfigKey(
                 "log.level", "unknown log level").into())
         } else {
