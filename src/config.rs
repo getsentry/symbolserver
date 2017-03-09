@@ -90,7 +90,7 @@ impl Config {
     pub fn get_aws_bucket_url<'a>(&'a self) -> Result<Url> {
         let url = if let Some(ref value) = self.aws.bucket_url {
             Url::parse(value)?
-        } else if let Ok(value) = env::var("AWS_BUCKET_URL") {
+        } else if let Ok(value) = env::var("SYMBOLSERVER_BUCKET_URL") {
             Url::parse(&value)?
         } else {
             return Err(ErrorKind::MissingConfigKey(
@@ -139,7 +139,7 @@ impl Config {
     pub fn get_symbol_dir<'a>(&'a self) -> Result<Cow<'a, Path>> {
         if let Some(ref path) = self.symbol_dir {
             Ok(Cow::Borrowed(path.as_path()))
-        } else if let Ok(dir) = env::var("SYMBOL_DIR") {
+        } else if let Ok(dir) = env::var("SYMBOLSERVER_SYMBOL_DIR") {
             Ok(Cow::Owned(PathBuf::from(dir)))
         } else {
             Err(ErrorKind::MissingConfigKey("symbol_dir").into())

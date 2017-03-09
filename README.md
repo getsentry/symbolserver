@@ -57,8 +57,8 @@ AWS conventions.
 
 Symbolserver specific variables:
 
-* `AWS_BUCKET_URL` (custom extension, overrides `aws.bucket_url`)
-* `SYMBOL_DIR` (used if `symbol_dir` is not set)
+* `SYMBOLSERVER_BUCKET_URL` (custom extension, overrides `aws.bucket_url`)
+* `SYMBOLSERVER_SYMBOL_DIR` (used if `symbol_dir` is not set)
 
 Additionally these well known variables are supported:
 
