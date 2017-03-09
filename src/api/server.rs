@@ -133,6 +133,7 @@ impl ApiServer {
             }
         };
         info!("Listening on {}", debug_addr);
+        info!("Spawning {} listener threads", threads);
 
         let ctx = self.ctx.clone();
         Server::new(listener)

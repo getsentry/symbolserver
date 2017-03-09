@@ -212,9 +212,13 @@ impl Config {
 
     /// Return the number of threads to listen on
     pub fn get_server_threads(&self) -> Result<usize> {
-        Ok(self.server.threads.unwrap_or_else(|| {
-            num_cpus::get() * 5 / 4
-        }))
+        if let Some(threads) = self.server.threads {
+            Ok(threads)
+        } else if let Ok(threadstr) = env::var("SYMBOLSERVER_THREADS") {
+            Ok(threadstr.parse().chain_err(|| "Invalid value for thread count")?)
+        } else {
+            Ok(num_cpus::get() * 5 / 4)
+        }
     }
 
     /// Return the log level filter
