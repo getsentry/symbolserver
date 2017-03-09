@@ -1,5 +1,7 @@
 # Sentry Symbol Server
 
+[![Build Status](https://travis-ci.org/getsentry/symbolserver.svg?branch=master)](https://travis-ci.org/getsentry/symbolserver)
+
 This repository implements a symbol server service which Sentry uses for
 symbolication of frames from Apple system SDKs.  If you have Apple SDKs
 you can use the `convert-sdk` command to convert them into a memdb file
