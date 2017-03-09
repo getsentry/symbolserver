@@ -242,9 +242,11 @@ impl Config {
     }
 
     /// Return the log filename
-    pub fn get_log_filename(&self) -> Result<Option<&Path>> {
+    pub fn get_log_filename<'a>(&'a self) -> Result<Option<Cow<'a, Path>>> {
         if let Some(ref path) = self.log.file {
-            Ok(Some(&*path))
+            Ok(Some(Cow::Borrowed(&*path)))
+        } else if let Ok(path) = env::var("SYMBOLSERVER_LOG_FILE") {
+            Ok(Some(Cow::Owned(PathBuf::from(path))))
         } else {
             Ok(None)
         }

@@ -60,6 +60,7 @@ Symbolserver specific variables:
 * `SYMBOLSERVER_BUCKET_URL` (used if `aws.bucket_url` is not set)
 * `SYMBOLSERVER_SYMBOL_DIR` (used if `symbol_dir` is not set)
 * `SYMBOLSERVER_LOG_LEVEL` (used if `log.level` is not set)
+* `SYMBOLSERVER_LOG_FILE` (used if `log.file` is not set)
 * `SYMBOLSERVER_HEALTHCHECK_TTL` (used if `server.healthcheck_ttl` is not set)
 * `SYMBOLSERVER_SYNC_INTERVAL` (used if `server.sync_interval` is not set)
 * `SYMBOLSERVER_THREADS` (used as a default for `run --threads`)
