@@ -238,11 +238,7 @@ fn sync_action(config: &Config) -> Result<()> {
 }
 
 fn run_action(config: &Config, matches: &ArgMatches) -> Result<()> {
-    let api_server = ApiServer::new(config)?;
-
-    if !matches.is_present("disable_sync") {
-        api_server.spawn_sync_thread()?;
-    }
+    let api_server = ApiServer::new(config, !matches.is_present("disable_sync"))?;
 
     let threads: usize = if let Some(threads) = matches.value_of("threads") {
         threads.parse().chain_err(|| "invalid value for threads")?

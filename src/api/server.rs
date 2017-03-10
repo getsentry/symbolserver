@@ -33,6 +33,7 @@ pub struct HealthCheckResponse {
 pub struct ServerContext {
     pub config: Config,
     pub stash: MemDbStash,
+    enable_sync: bool,
     cached_memdb_status: Mutex<Option<(DateTime<UTC>, u64, HealthCheckResponse)>>,
 }
 
@@ -53,6 +54,15 @@ pub enum BindOptions<'a> {
 
 impl ServerContext {
     pub fn check_health(&self) -> Result<HealthCheckResponse> {
+        // if synching is disabled, we are always healthy
+        if !self.enable_sync {
+            return Ok(HealthCheckResponse {
+                is_offline: true,
+                is_healthy: true,
+                sync_lag: 0,
+            });
+        }
+
         let mut cache_value = self.cached_memdb_status.lock().unwrap();
         if_chain! {
             if let Some((ts, cache_revision, ref rv)) = *cache_value;
@@ -73,11 +83,12 @@ impl ServerContext {
 
 impl ApiServer {
     /// Create a new server.
-    pub fn new(config: &Config) -> Result<ApiServer> {
+    pub fn new(config: &Config, enable_sync: bool) -> Result<ApiServer> {
         Ok(ApiServer {
             ctx: Arc::new(ServerContext {
                 config: config.clone(),
                 stash: MemDbStash::new(config)?,
+                enable_sync: enable_sync,
                 cached_memdb_status: Mutex::new(None),
             }),
         })
@@ -107,6 +118,13 @@ impl ApiServer {
     /// Runs the server in a loop.
     pub fn run(&self, threads: usize, opts: BindOptions) -> Result<()> {
         let debug_addr;
+
+        if self.ctx.enable_sync {
+            self.spawn_sync_thread()?;
+        } else {
+            info!("Background sync is disabled. Health check forced to healthy.");
+        }
+
         let listener = match opts {
             BindOptions::BindToAddr(addr) => {
                 debug_addr = format!("http://{}/", addr);
