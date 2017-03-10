@@ -93,3 +93,64 @@ The following API endpoints exist:
 > Performs a symbol lookup.  For request or response format look into the
 > [api::handlers](https://github.com/getsentry/symbolserver/blob/master/src/api/handlers.rs)
 > module.
+
+## For Local Development
+
+If you are doing local development with in the getsentry org and you want to use the
+symbol server you can follow this guide.  Before you do please make sure to install
+a reasonable recent version of Rust with rustup.
+
+First create a `symbolserver.yml`:
+
+```yaml
+aws:
+  # Ask matt for these
+  access_key: MY_ACCESS_KEY
+  secret_key: MY_SECRET_KEY
+  bucket_url: BUCKET_URL
+
+# Server directory
+symbol_dir: /Users/your-username/.sentry-symbols
+
+# Only sync the latest SDKs.  Chances are this is all you have locally anyways
+sync:
+  interval: 500
+  ignore:
+    - '*'
+    - '!iOS_10.*'
+```
+
+Then make sure to create the folder for the symbols:
+
+```
+mkdir /Users/your-username/.sentry-symbols
+```
+
+Then run the server like this:
+
+```
+cargo run -- --config=symbolserver.yml run
+```
+
+The server will spin up, start synching symbols and eventually you are ready to go.
+
+## SDK Processing
+
+If you are tasked with process SDK files this is how you do it:
+
+1.  connect an i-device (like an iPod) running the version of the
+    operating system you want to extract the symbols of.
+2.  launch Xcode and the device manager there.  It might be necesssary to
+    "use this device or development".
+3.  wait for Xcode to finish processing the device.
+4.  go to `~/Library/Developer/Xcode/iOS DeviceSupport` (or tvOS etc.)
+5.  ensure a folder there was created for the version of iOS you are
+    running.
+6.  zip the entire thing up, then store it in the S3 bucket for original
+    SDKs
+7.  next let the symbol server process the file::
+
+    sentry-symbolserver -- convert-sdk --compress "~/Library/Developers/Xcode/iOS DeviceSupport/X.Y.Z (WWWWW)
+
+8.  the generated file is dumped into the current working directory and you
+    can then upload it to the S3 bucket where memdb files go.
