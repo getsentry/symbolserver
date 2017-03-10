@@ -13,7 +13,7 @@ use chrono::Duration;
 use log::LogLevelFilter;
 
 use super::{Result, ResultExt, ErrorKind};
-use super::utils::is_docker;
+use super::utils::{is_docker, RegexFilter};
 
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -39,6 +39,12 @@ struct LogConfig {
     file: Option<PathBuf>,
 }
 
+#[derive(Deserialize, Debug, Default, Clone)]
+struct SyncConfig {
+    include: RegexFilter,
+    exclude: RegexFilter,
+}
+
 /// Central config object that exposes the information from
 /// the symbolserver yaml config.
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -50,6 +56,8 @@ pub struct Config {
     #[serde(default)]
     log: LogConfig,
     symbol_dir: Option<PathBuf>,
+    #[serde(default)]
+    sync: SyncConfig,
 }
 
 impl Config {

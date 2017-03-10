@@ -10,6 +10,7 @@ use std::io::{Read, Write};
 use std::sync::Mutex;
 
 use pbr;
+use regex::Regex;
 use chrono::Duration;
 use serde::{Serialize, Deserialize, de, ser};
 
@@ -82,6 +83,65 @@ impl Deserialize for Addr {
         }
 
         deserializer.deserialize_str(AddrVisitor).map(Addr)
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct RegexFilter {
+    patterns: Vec<Regex>,
+}
+
+impl Deserialize for RegexFilter {
+    fn deserialize<D>(deserializer: D) -> StdResult<RegexFilter, D::Error>
+        where D: de::Deserializer {
+        struct FilterVisitor;
+
+        impl de::Visitor for FilterVisitor {
+            type Value = Vec<Regex>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a regular expression filter")
+            }
+
+            fn visit_seq<V>(self, mut visitor: V)
+                -> StdResult<Vec<Regex>, V::Error>
+                where V: de::SeqVisitor
+            {
+                let mut rv = vec![];
+                while let Some(item) = visitor.visit::<String>()? {
+                    rv.push(Regex::new(&item)
+                        .map_err(|err| {
+                            <V::Error as de::Error>::custom(format!(
+                                "invalid regular expression '{}': {}", &item, err))
+                        })?);
+                }
+                Ok(rv)
+            }
+
+            fn visit_str<E: de::Error>(self, value: &str)
+                -> StdResult<Vec<Regex>, E>
+            {
+                Ok(vec![Regex::new(value)
+                    .map_err(|err| {
+                        E::custom(format!("invalid regular expression '{}': {}", value, err))
+                    })?])
+            }
+        }
+
+        deserializer.deserialize_seq(FilterVisitor).map(|patterns| {
+            RegexFilter { patterns: patterns }
+        })
+    }
+}
+
+impl RegexFilter {
+    pub fn matches(&self, value: &str) -> bool {
+        for pattern in self.patterns.iter() {
+            if pattern.is_match(value) {
+                return true;
+            }
+        }
+        false
     }
 }
 
