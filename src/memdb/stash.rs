@@ -78,11 +78,6 @@ impl RemoteSdk {
         &self.filename
     }
 
-    /// The local filename the SDK has in the stash folder
-    pub fn local_filename(&self) -> &str {
-        self.filename.trim_right_matches('z')
-    }
-
     /// The size of the SDK in bytes
     pub fn size(&self) -> u64 {
         self.size
@@ -98,12 +93,12 @@ impl RemoteSdk {
 pub type RemoteSdkIter<'a> = HashMapValuesIter<'a, String, RemoteSdk>;
 
 impl SdkSyncState {
-    pub fn get_sdk(&self, filename: &str) -> Option<&RemoteSdk> {
-        self.sdks.get(filename)
+    pub fn get_sdk(&self, info: &SdkInfo) -> Option<&RemoteSdk> {
+        self.sdks.get(&info.memdb_filename())
     }
 
     pub fn update_sdk(&mut self, sdk: &RemoteSdk) {
-        self.sdks.insert(sdk.local_filename().to_string(), sdk.clone());
+        self.sdks.insert(sdk.info().memdb_filename().to_string(), sdk.clone());
     }
 
     pub fn sdks<'a>(&'a self) -> RemoteSdkIter<'a> {
@@ -215,7 +210,7 @@ impl MemDbStash {
     fn fetch_remote_state(&self) -> Result<SdkSyncState> {
         let mut sdks = HashMap::new();
         for remote_sdk in self.s3.list_upstream_sdks()? {
-            sdks.insert(remote_sdk.local_filename().into(), remote_sdk);
+            sdks.insert(remote_sdk.info().memdb_filename().into(), remote_sdk);
         }
         Ok(SdkSyncState { sdks: sdks, revision: None })
     }
@@ -232,7 +227,7 @@ impl MemDbStash {
         let started = UTC::now();
         progress.set_message(&format!("Synchronizing {}", sdk.info()));
         let mut src = self.s3.download_sdk(sdk)?;
-        let dst = fs::File::create(self.path.join(sdk.local_filename()))?;
+        let dst = fs::File::create(self.path.join(sdk.info().memdb_filename()))?;
         let mut dst = XzDecoder::new(dst);
         copy_with_progress(&progress, &mut src, &mut dst)?;
         progress.finish(&format!("Synchronized {}", sdk.info()));
@@ -250,7 +245,7 @@ impl MemDbStash {
         } else {
             info!("removing {}", sdk.info());
         }
-        if let Err(err) = fs::remove_file(self.path.join(sdk.local_filename())) {
+        if let Err(err) = fs::remove_file(self.path.join(sdk.info().memdb_filename())) {
             if err.kind() != io::ErrorKind::NotFound {
                 return Err(err.into());
             }
@@ -290,7 +285,7 @@ impl MemDbStash {
         match self.fetch_remote_state() {
             Ok(remote_state) => {
                 for sdk in remote_state.sdks() {
-                    if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
+                    if let Some(local_sdk) = local_state.get_sdk(sdk.info()) {
                         if local_sdk != sdk {
                             different += 1;
                         }
@@ -329,45 +324,48 @@ impl MemDbStash {
         let mut remote_state = self.fetch_remote_state()?;
         let started = UTC::now();
         let mut changed = false;
-
         let mut to_delete : HashSet<_> = HashSet::from_iter(
-            local_state.sdks().map(|x| x.local_filename().to_string()));
+            local_state.sdks().map(|x| x.info().clone()));
+        let mut sdks : Vec<_> = remote_state.sdks()
+            .map(|x| x.info().clone()).collect();
+        sdks.sort();
 
-        for sdk in remote_state.sdks() {
-            let mut changed_something = false;
-            if !self.sdk_is_ignored(&sdk.info()) {
-                if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
+        for sdk_info in sdks.iter() {
+            if !self.sdk_is_ignored(sdk_info) {
+                let mut changed_something = false;
+                let sdk = remote_state.get_sdk(sdk_info).unwrap();
+                if let Some(local_sdk) = local_state.get_sdk(sdk_info) {
                     if local_sdk != sdk {
                         self.update_sdk(&sdk, &options)?;
                         changed_something = true;
                     } else if options.user_facing {
-                        println!("  ⸰ Unchanged {}", sdk.info());
+                        println!("  ⸰ Unchanged {}", sdk_info);
                     } else {
-                        debug!("unchanged sdk {}", sdk.info());
+                        debug!("unchanged sdk {}", sdk_info);
                     }
                 } else {
                     self.update_sdk(&sdk, &options)?;
                     changed_something = true;
                 }
+                if changed_something {
+                    changed = true;
+                    local_state.update_sdk(&sdk);
+                    local_state.revision = Some(local_state.revision.unwrap_or(0) + 1);
+                    self.save_local_state(&local_state)?;
+                }
             } else {
                 if options.user_facing {
-                    println!("  ⸰ Ignored {} by config", sdk.info());
+                    println!("  ⸰ Ignored {} by config", sdk_info);
                 } else {
-                    debug!("ignored sdk {} by config", sdk.info());
+                    debug!("ignored sdk {} by config", sdk_info);
                 }
             }
 
-            to_delete.remove(sdk.local_filename());
-            if changed_something {
-                changed = true;
-                local_state.update_sdk(&sdk);
-                local_state.revision = Some(local_state.revision.unwrap_or(0) + 1);
-                self.save_local_state(&local_state)?;
-            }
+            to_delete.remove(sdk_info);
         }
 
-        for local_filename in to_delete.iter() {
-            if let Some(sdk) = local_state.get_sdk(local_filename) {
+        for sdk_info in to_delete.iter() {
+            if let Some(sdk) = local_state.get_sdk(sdk_info) {
                 self.remove_sdk(sdk, &options)?;
                 self.memdbs.write().unwrap().remove(&sdk.info());
             }
@@ -400,14 +398,13 @@ impl MemDbStash {
         }
 
         let local_state = self.get_local_state()?;
-        let filename = info.memdb_filename();
 
         // make sure we check in the local state first if the SDK exists.
         // if we go directly to the memdbs array or look at the file system
         // we might start to consider things that are not available yet or
         // not available any longer.
-        if local_state.get_sdk(&filename).is_some() {
-            let memdb = MemDb::from_path(self.path.join(&filename))?;
+        if local_state.get_sdk(&info).is_some() {
+            let memdb = MemDb::from_path(self.path.join(&info.memdb_filename()))?;
             self.memdbs.write().unwrap().insert(info.clone(), Arc::new(memdb));
             if let Some(arc) = self.memdbs.read().unwrap().get(info) {
                 return Ok(arc.clone());
