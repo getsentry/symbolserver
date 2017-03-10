@@ -19,7 +19,8 @@ use super::read::MemDb;
 use super::super::config::Config;
 use super::super::sdk::SdkInfo;
 use super::super::s3::S3;
-use super::super::utils::{ProgressIndicator, copy_with_progress, HumanDuration};
+use super::super::utils::{ProgressIndicator, copy_with_progress, HumanDuration,
+                          RegexFilter};
 use super::super::{Result, ResultExt, ErrorKind};
 
 /// Helper for synching
@@ -33,6 +34,8 @@ pub struct MemDbStash {
     s3: S3,
     local_state: RwLock<Option<Arc<SdkSyncState>>>,
     memdbs: RwLock<HashMap<SdkInfo, Arc<MemDb<'static>>>>,
+    sync_include_filter: RegexFilter,
+    sync_exclude_filter: RegexFilter,
 }
 
 /// Information about a remotely available SDK
@@ -158,6 +161,8 @@ impl MemDbStash {
             s3: S3::from_config(config)?,
             local_state: RwLock::new(None),
             memdbs: RwLock::new(HashMap::new()),
+            sync_include_filter: config.get_sync_include_filter()?.clone(),
+            sync_exclude_filter: config.get_sync_exclude_filter()?.clone(),
         })
     }
 
@@ -315,6 +320,18 @@ impl MemDbStash {
         })
     }
 
+    /// Checks if the SDK is ignored by config
+    pub fn sdk_is_ignored(&self, info: &SdkInfo) -> bool {
+        let id = info.sdk_id();
+        if self.sync_include_filter.matches(&id) {
+            false
+        } else if self.sync_exclude_filter.matches(&id) {
+            true
+        } else {
+            false
+        }
+    }
+
     /// Synchronize the local stash with the server
     pub fn sync(&self, options: SyncOptions) -> Result<()> {
         let mut local_state = self.read_local_state()?;
@@ -327,18 +344,26 @@ impl MemDbStash {
 
         for sdk in remote_state.sdks() {
             let mut changed_something = false;
-            if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
-                if local_sdk != sdk {
+            if !self.sdk_is_ignored(&sdk.info()) {
+                if let Some(local_sdk) = local_state.get_sdk(sdk.local_filename()) {
+                    if local_sdk != sdk {
+                        self.update_sdk(&sdk, &options)?;
+                        changed_something = true;
+                    } else if options.user_facing {
+                        println!("  ⸰ Unchanged {}", sdk.info());
+                    } else {
+                        debug!("unchanged sdk {}", sdk.info());
+                    }
+                } else {
                     self.update_sdk(&sdk, &options)?;
                     changed_something = true;
-                } else if options.user_facing {
-                    println!("  ⸰ Unchanged {}", sdk.info());
-                } else {
-                    debug!("unchanged sdk {}", sdk.info());
                 }
             } else {
-                self.update_sdk(&sdk, &options)?;
-                changed_something = true;
+                if options.user_facing {
+                    println!("  ⸰ Ignored {} by config", sdk.info());
+                } else {
+                    debug!("ignored sdk {} by config", sdk.info());
+                }
             }
 
             to_delete.remove(sdk.local_filename());

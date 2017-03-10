@@ -29,7 +29,6 @@ struct ServerConfig {
     host: Option<String>,
     port: Option<u16>,
     healthcheck_ttl: Option<i64>,
-    sync_interval: Option<i64>,
     threads: Option<usize>,
 }
 
@@ -41,8 +40,11 @@ struct LogConfig {
 
 #[derive(Deserialize, Debug, Default, Clone)]
 struct SyncConfig {
+    #[serde(default)]
     include: RegexFilter,
+    #[serde(default)]
     exclude: RegexFilter,
+    interval: Option<i64>,
 }
 
 /// Central config object that exposes the information from
@@ -204,7 +206,7 @@ impl Config {
 
     /// Return the server sync interval
     pub fn get_server_sync_interval(&self) -> Result<Duration> {
-        let interval = if let Some(interval) = self.server.sync_interval {
+        let interval = if let Some(interval) = self.sync.interval {
             interval
         } else if let Ok(intervalstr) = env::var("SYMBOLSERVER_SYNC_INTERVAL") {
             intervalstr.parse().chain_err(|| "Invalid value for sync interval")?
@@ -213,7 +215,7 @@ impl Config {
         };
         if interval < 0 {
             return Err(ErrorKind::BadConfigKey(
-                "server.sync_interval", "Sync interval has to be positive").into());
+                "sync.interval", "Sync interval has to be positive").into());
         }
         Ok(Duration::seconds(interval))
     }
@@ -258,5 +260,15 @@ impl Config {
         } else {
             Ok(None)
         }
+    }
+
+    /// Return the sync include regex filter
+    pub fn get_sync_include_filter(&self) -> Result<&RegexFilter> {
+        Ok(&self.sync.include)
+    }
+
+    /// Return the sync exclude regex filter
+    pub fn get_sync_exclude_filter(&self) -> Result<&RegexFilter> {
+        Ok(&self.sync.exclude)
     }
 }
