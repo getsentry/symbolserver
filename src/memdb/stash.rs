@@ -328,7 +328,7 @@ impl MemDbStash {
             local_state.sdks().map(|x| x.info().clone()));
         let mut sdks : Vec<_> = remote_state.sdks()
             .map(|x| x.info().clone()).collect();
-        sdks.sort();
+        sdks.sort_by(|a, b| b.cmp(a));
 
         for sdk_info in sdks.iter() {
             if !self.sdk_is_ignored(sdk_info) {
