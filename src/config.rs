@@ -13,7 +13,7 @@ use chrono::Duration;
 use log::LogLevelFilter;
 
 use super::{Result, ResultExt, ErrorKind};
-use super::utils::{is_docker, RegexFilter};
+use super::utils::{is_docker, IgnorePatterns};
 
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -41,9 +41,7 @@ struct LogConfig {
 #[derive(Deserialize, Debug, Default, Clone)]
 struct SyncConfig {
     #[serde(default)]
-    include: RegexFilter,
-    #[serde(default)]
-    exclude: RegexFilter,
+    ignore: IgnorePatterns,
     interval: Option<i64>,
 }
 
@@ -262,13 +260,8 @@ impl Config {
         }
     }
 
-    /// Return the sync include regex filter
-    pub fn get_sync_include_filter(&self) -> Result<&RegexFilter> {
-        Ok(&self.sync.include)
-    }
-
-    /// Return the sync exclude regex filter
-    pub fn get_sync_exclude_filter(&self) -> Result<&RegexFilter> {
-        Ok(&self.sync.exclude)
+    /// Return the sync ignore patterns
+    pub fn get_ignore_patterns(&self) -> Result<&IgnorePatterns> {
+        Ok(&self.sync.ignore)
     }
 }

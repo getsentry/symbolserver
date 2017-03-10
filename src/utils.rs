@@ -10,7 +10,7 @@ use std::io::{Read, Write};
 use std::sync::Mutex;
 
 use pbr;
-use regex::Regex;
+use globset;
 use chrono::Duration;
 use serde::{Serialize, Deserialize, de, ser};
 
@@ -87,66 +87,73 @@ impl Deserialize for Addr {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct RegexFilter {
-    patterns: Vec<Regex>,
+pub struct IgnorePatterns {
+    patterns: Vec<(bool, globset::GlobMatcher)>,
 }
 
-impl Deserialize for RegexFilter {
-    fn deserialize<D>(deserializer: D) -> StdResult<RegexFilter, D::Error>
+impl Deserialize for IgnorePatterns {
+    fn deserialize<D>(deserializer: D) -> StdResult<IgnorePatterns, D::Error>
         where D: de::Deserializer {
         struct FilterVisitor;
 
-        fn make_regex<E: de::Error>(value: &str) -> StdResult<Regex, E> {
-            Ok(Regex::new(value)
-               .map_err(|err| {
-                   de::Error::custom(format!(
-                       "invalid regular expression '{}': {}", value, err))
-               })?)
+        fn make_pattern<E: de::Error>(value: &str)
+            -> StdResult<(bool, globset::GlobMatcher), E>
+        {
+            let (negative, pattern) = if &value[..1] == "!" {
+                (true, &value[1..])
+            } else {
+                (false, value)
+            };
+            Ok((negative, globset::Glob::new(pattern).map_err(|err| {
+               de::Error::custom(format!(
+                   "invalid pattern '{}': {}", value, err))})?.compile_matcher()))
         }
 
         impl de::Visitor for FilterVisitor {
-            type Value = Vec<Regex>;
+            type Value = Vec<(bool, globset::GlobMatcher)>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("a regular expression filter")
             }
 
             fn visit_seq<V: de::SeqVisitor>(self, mut visitor: V)
-                -> StdResult<Vec<Regex>, V::Error>
+                -> StdResult<Vec<(bool, globset::GlobMatcher)>, V::Error>
             {
                 let mut rv = vec![];
                 while let Some(item) = visitor.visit::<String>()? {
-                    rv.push(make_regex(&item)?);
+                    rv.push(make_pattern(&item)?);
                 }
                 Ok(rv)
             }
 
-            fn visit_unit<E: de::Error>(self) -> StdResult<Vec<Regex>, E>
+            fn visit_unit<E: de::Error>(self)
+                -> StdResult<Vec<(bool, globset::GlobMatcher)>, E>
             {
                 Ok(vec![])
             }
 
             fn visit_str<E: de::Error>(self, value: &str)
-                -> StdResult<Vec<Regex>, E>
+                -> StdResult<Vec<(bool, globset::GlobMatcher)>, E>
             {
-                Ok(vec![make_regex(value)?])
+                Ok(vec![make_pattern(value)?])
             }
         }
 
         deserializer.deserialize_seq(FilterVisitor).map(|patterns| {
-            RegexFilter { patterns: patterns }
+            IgnorePatterns { patterns: patterns }
         })
     }
 }
 
-impl RegexFilter {
-    pub fn matches(&self, value: &str) -> bool {
-        for pattern in self.patterns.iter() {
+impl IgnorePatterns {
+    pub fn is_match(&self, value: &str) -> bool {
+        let mut rv = false;
+        for &(negative, ref pattern) in self.patterns.iter() {
             if pattern.is_match(value) {
-                return true;
+                rv = !negative;
             }
         }
-        false
+        rv
     }
 }
 

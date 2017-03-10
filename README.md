@@ -35,7 +35,14 @@ server:
   # Cache the healthcheck for 60 seconds
   healthcheck_ttl: 60
   # Sync every 2 minutes
-  sync_interval: 120
+
+# Controls the sync
+sync:
+  interval: 120
+  ignore:
+    - *
+    - !iOS_10.*
+    - !iOS_9.*
 
 # Log stuff
 log:

@@ -11,6 +11,7 @@ extern crate zip;
 extern crate walkdir;
 extern crate uuid;
 extern crate regex;
+extern crate globset;
 #[macro_use] extern crate lazy_static;
 extern crate mach_object;
 extern crate memmap;

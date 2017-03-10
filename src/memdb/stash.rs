@@ -20,7 +20,7 @@ use super::super::config::Config;
 use super::super::sdk::SdkInfo;
 use super::super::s3::S3;
 use super::super::utils::{ProgressIndicator, copy_with_progress, HumanDuration,
-                          RegexFilter};
+                          IgnorePatterns};
 use super::super::{Result, ResultExt, ErrorKind};
 
 /// Helper for synching
@@ -34,8 +34,7 @@ pub struct MemDbStash {
     s3: S3,
     local_state: RwLock<Option<Arc<SdkSyncState>>>,
     memdbs: RwLock<HashMap<SdkInfo, Arc<MemDb<'static>>>>,
-    sync_include_filter: RegexFilter,
-    sync_exclude_filter: RegexFilter,
+    ignore_patterns: IgnorePatterns,
 }
 
 /// Information about a remotely available SDK
@@ -161,8 +160,7 @@ impl MemDbStash {
             s3: S3::from_config(config)?,
             local_state: RwLock::new(None),
             memdbs: RwLock::new(HashMap::new()),
-            sync_include_filter: config.get_sync_include_filter()?.clone(),
-            sync_exclude_filter: config.get_sync_exclude_filter()?.clone(),
+            ignore_patterns: config.get_ignore_patterns()?.clone(),
         })
     }
 
@@ -322,14 +320,7 @@ impl MemDbStash {
 
     /// Checks if the SDK is ignored by config
     pub fn sdk_is_ignored(&self, info: &SdkInfo) -> bool {
-        let id = info.sdk_id();
-        if self.sync_include_filter.matches(&id) {
-            false
-        } else if self.sync_exclude_filter.matches(&id) {
-            true
-        } else {
-            false
-        }
+        self.ignore_patterns.is_match(&info.sdk_id())
     }
 
     /// Synchronize the local stash with the server
