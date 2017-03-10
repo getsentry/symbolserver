@@ -40,9 +40,9 @@ server:
 sync:
   interval: 120
   ignore:
-    - *
-    - !iOS_10.*
-    - !iOS_9.*
+    - '*'
+    - '!iOS_10.*'
+    - '!iOS_9.*'
 
 # Log stuff
 log:
