@@ -96,6 +96,14 @@ impl Deserialize for RegexFilter {
         where D: de::Deserializer {
         struct FilterVisitor;
 
+        fn make_regex<E: de::Error>(value: &str) -> StdResult<Regex, E> {
+            Ok(Regex::new(value)
+               .map_err(|err| {
+                   de::Error::custom(format!(
+                       "invalid regular expression '{}': {}", value, err))
+               })?)
+        }
+
         impl de::Visitor for FilterVisitor {
             type Value = Vec<Regex>;
 
@@ -103,28 +111,25 @@ impl Deserialize for RegexFilter {
                 formatter.write_str("a regular expression filter")
             }
 
-            fn visit_seq<V>(self, mut visitor: V)
+            fn visit_seq<V: de::SeqVisitor>(self, mut visitor: V)
                 -> StdResult<Vec<Regex>, V::Error>
-                where V: de::SeqVisitor
             {
                 let mut rv = vec![];
                 while let Some(item) = visitor.visit::<String>()? {
-                    rv.push(Regex::new(&item)
-                        .map_err(|err| {
-                            <V::Error as de::Error>::custom(format!(
-                                "invalid regular expression '{}': {}", &item, err))
-                        })?);
+                    rv.push(make_regex(&item)?);
                 }
                 Ok(rv)
+            }
+
+            fn visit_unit<E: de::Error>(self) -> StdResult<Vec<Regex>, E>
+            {
+                Ok(vec![])
             }
 
             fn visit_str<E: de::Error>(self, value: &str)
                 -> StdResult<Vec<Regex>, E>
             {
-                Ok(vec![Regex::new(value)
-                    .map_err(|err| {
-                        E::custom(format!("invalid regular expression '{}': {}", value, err))
-                    })?])
+                Ok(vec![make_regex(value)?])
             }
         }
 
