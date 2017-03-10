@@ -148,9 +148,11 @@ If you are tasked with process SDK files this is how you do it:
     running.
 6.  zip the entire thing up, then store it in the S3 bucket for original
     SDKs
-7.  next let the symbol server process the file::
+7.  next let the symbol server process the file:
 
-    sentry-symbolserver -- convert-sdk --compress "~/Library/Developers/Xcode/iOS DeviceSupport/X.Y.Z (WWWWW)
+    ::
+
+        sentry-symbolserver -- convert-sdk --compress "~/Library/Developers/Xcode/iOS DeviceSupport/X.Y.Z (WWWWW)
 
 8.  the generated file is dumped into the current working directory and you
     can then upload it to the S3 bucket where memdb files go.
