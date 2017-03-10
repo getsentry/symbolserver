@@ -70,3 +70,19 @@ Additionally these well known variables are supported:
 * `IP` and `PORT` (used as a default for `run --bind`)
 * `LISTEN_FDS` (used as default for `run --bind-fd` in systemd style. eg: listens on FD 3)
 * `http_proxy` (no config equivalent)
+
+## Endpoints
+
+The following API endpoints exist:
+
+`GET /health`
+> A simple healthcheck that reports 200 if everything is okay, or 502 otherwise.  It
+> also contains a JSON payload with the sync lag (number of unsynchronized SDKs).
+
+`GET /sdks`
+> Returns a list of SDKs that the server is currently serving up
+
+`POST /lookup`
+> Performs a symbol lookup.  For request or response format look into the
+> [api::handlers](https://github.com/getsentry/symbolserver/blob/master/src/api/handlers.rs)
+> module.
