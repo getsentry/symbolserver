@@ -1,5 +1,5 @@
 //! Implements the API server.
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::io::Read;
 use std::os::unix::io::{FromRawFd, RawFd};
@@ -33,7 +33,7 @@ pub struct ServerContext {
     pub config: Config,
     pub stash: MemDbStash,
     enable_sync: bool,
-    cached_memdb_status: Mutex<Option<SyncStatus>>,
+    cached_memdb_status: RwLock<Option<SyncStatus>>,
 }
 
 /// The API server itself.
@@ -53,14 +53,14 @@ pub enum BindOptions<'a> {
 
 impl ServerContext {
     pub fn check_health(&self) -> Result<()> {
-        let mut cache_value = self.cached_memdb_status.lock().unwrap();
-        *cache_value = Some(self.stash.get_sync_status()?);
+        let sync_status = self.stash.get_sync_status()?;
+        *self.cached_memdb_status.write().unwrap() = Some(sync_status);
         Ok(())
     }
 
     pub fn get_healthcheck_result(&self) -> Result<HealthCheckResponse> {
         if self.enable_sync {
-            let cache_value = self.cached_memdb_status.lock().unwrap();
+            let cache_value = self.cached_memdb_status.read().unwrap();
             if let Some(ref state) = *cache_value {
                 Ok(HealthCheckResponse {
                     is_offline: state.is_offline(),
@@ -92,7 +92,7 @@ impl ApiServer {
                 config: config.clone(),
                 stash: MemDbStash::new(config)?,
                 enable_sync: enable_sync,
-                cached_memdb_status: Mutex::new(None),
+                cached_memdb_status: RwLock::new(None),
             }),
         })
     }
