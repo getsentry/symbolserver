@@ -28,7 +28,7 @@ struct AwsConfig {
 struct ServerConfig {
     host: Option<String>,
     port: Option<u16>,
-    healthcheck_ttl: Option<i64>,
+    healthcheck_interval: Option<i64>,
     threads: Option<usize>,
 }
 
@@ -186,18 +186,19 @@ impl Config {
         Ok((self.get_server_host()?, self.get_server_port()?))
     }
 
-    /// Return the server healthcheck ttl
-    pub fn get_server_healthcheck_ttl(&self) -> Result<Duration> {
-        let ttl = if let Some(ttl) = self.server.healthcheck_ttl {
+    /// Return the server healthcheck interval
+    pub fn get_server_healthcheck_interval(&self) -> Result<Duration> {
+        let ttl = if let Some(ttl) = self.server.healthcheck_interval {
             ttl
-        } else if let Ok(ttlstr) = env::var("SYMBOLSERVER_HEALTHCHECK_TTL") {
-            ttlstr.parse().chain_err(|| "Invalid value for healthcheck ttl")?
+        } else if let Ok(ttlstr) = env::var("SYMBOLSERVER_HEALTHCHECK_INTERVAL") {
+            ttlstr.parse().chain_err(|| "Invalid value for healthcheck interval")?
         } else {
-            return Ok(Duration::minutes(2));
+            return Ok(Duration::seconds(30));
         };
         if ttl < 0 {
             return Err(ErrorKind::BadConfigKey(
-                "server.healthcheck_ttl", "Healthcheck TTL has to be positive").into());
+                "server.healthcheck_interval",
+                "Healthcheck interval has to be positive").into());
         }
         Ok(Duration::seconds(ttl))
     }

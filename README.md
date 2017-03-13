@@ -33,7 +33,7 @@ server:
   host: '127.0.0.1'
   port: 3000
   # Cache the healthcheck for 60 seconds
-  healthcheck_ttl: 60
+  healthcheck_interval: 60
   # Sync every 2 minutes
 
 # Controls the sync
@@ -68,7 +68,7 @@ Symbolserver specific variables:
 * `SYMBOLSERVER_SYMBOL_DIR` (used if `symbol_dir` is not set)
 * `SYMBOLSERVER_LOG_LEVEL` (used if `log.level` is not set)
 * `SYMBOLSERVER_LOG_FILE` (used if `log.file` is not set)
-* `SYMBOLSERVER_HEALTHCHECK_TTL` (used if `server.healthcheck_ttl` is not set)
+* `SYMBOLSERVER_HEALTHCHECK_INTERVAL` (used if `server.healthcheck_interval` is not set)
 * `SYMBOLSERVER_SYNC_INTERVAL` (used if `server.sync_interval` is not set)
 * `SYMBOLSERVER_THREADS` (used as a default for `run --threads`)
 

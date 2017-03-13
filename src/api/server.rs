@@ -10,12 +10,11 @@ use hyper::header::ContentLength;
 use hyper::method::Method;
 use hyper::net::HttpListener;
 use hyper::uri::RequestUri;
-use chrono::{DateTime, UTC};
 use serde::Deserialize;
 use serde_json;
 
 use super::super::config::Config;
-use super::super::memdb::stash::MemDbStash;
+use super::super::memdb::stash::{MemDbStash, SyncStatus};
 use super::super::Result;
 use super::super::utils::{HumanDuration, run_isolated, get_systemd_fd};
 use super::handlers;
@@ -34,7 +33,7 @@ pub struct ServerContext {
     pub config: Config,
     pub stash: MemDbStash,
     enable_sync: bool,
-    cached_memdb_status: Mutex<Option<(DateTime<UTC>, u64, HealthCheckResponse)>>,
+    cached_memdb_status: Mutex<Option<SyncStatus>>,
 }
 
 /// The API server itself.
@@ -53,31 +52,35 @@ pub enum BindOptions<'a> {
 }
 
 impl ServerContext {
-    pub fn check_health(&self) -> Result<HealthCheckResponse> {
-        // if synching is disabled, we are always healthy
-        if !self.enable_sync {
-            return Ok(HealthCheckResponse {
+    pub fn check_health(&self) -> Result<()> {
+        let mut cache_value = self.cached_memdb_status.lock().unwrap();
+        *cache_value = Some(self.stash.get_sync_status()?);
+        Ok(())
+    }
+
+    pub fn get_healthcheck_result(&self) -> Result<HealthCheckResponse> {
+        if self.enable_sync {
+            let cache_value = self.cached_memdb_status.lock().unwrap();
+            if let Some(ref state) = *cache_value {
+                Ok(HealthCheckResponse {
+                    is_offline: state.is_offline(),
+                    is_healthy: state.is_healthy(),
+                    sync_lag: state.lag()
+                })
+            } else {
+                Ok(HealthCheckResponse {
+                    is_offline: true,
+                    is_healthy: false,
+                    sync_lag: 0,
+                })
+            }
+        } else {
+            Ok(HealthCheckResponse {
                 is_offline: true,
                 is_healthy: true,
                 sync_lag: 0,
-            });
+            })
         }
-
-        let mut cache_value = self.cached_memdb_status.lock().unwrap();
-        if_chain! {
-            if let Some((ts, cache_revision, ref rv)) = *cache_value;
-            if cache_revision == self.stash.get_revision()?;
-            if UTC::now() - self.config.get_server_healthcheck_ttl()? < ts;
-            then { return Ok(rv.clone()); }
-        }
-        let state = self.stash.get_sync_status()?;
-        let rv = HealthCheckResponse {
-            is_offline: state.is_offline(),
-            is_healthy: state.is_healthy(),
-            sync_lag: state.lag(),
-        };
-        *cache_value = Some((UTC::now(), state.revision(), rv.clone()));
-        Ok(rv)
     }
 }
 
@@ -115,12 +118,34 @@ impl ApiServer {
         Ok(())
     }
 
+    /// Spawns a background check that checks the health of the system.
+    pub fn spawn_healthcheck_thread(&self) -> Result<()> {
+        let interval = self.ctx.config.get_server_healthcheck_interval()?;
+        let std_interval = interval.to_std().unwrap();
+        info!("Running healthcheck every {}", HumanDuration(interval));
+
+        // run initial healthcheck right away.
+        let ctx = self.ctx.clone();
+        ctx.check_health()?;
+
+        thread::spawn(move || {
+            loop {
+                let ctx = ctx.clone();
+                run_isolated(move || ctx.check_health());
+                thread::sleep(std_interval);
+            }
+        });
+
+        Ok(())
+    }
+
     /// Runs the server in a loop.
     pub fn run(&self, threads: usize, opts: BindOptions) -> Result<()> {
         let debug_addr;
 
         if self.ctx.enable_sync {
             self.spawn_sync_thread()?;
+            self.spawn_healthcheck_thread()?;
         } else {
             info!("Background sync is disabled. Health check forced to healthy.");
         }

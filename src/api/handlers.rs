@@ -87,7 +87,7 @@ impl<'a> LocalMemDbCache<'a> {
 pub fn healthcheck_handler(ctx: &ServerContext, req: Request) -> Result<ApiResponse>
 {
     assert_method!(req, Method::Get);
-    let rv = ctx.check_health()?;
+    let rv = ctx.get_healthcheck_result()?;
     let status = if rv.is_healthy {
         StatusCode::Ok
     } else {
