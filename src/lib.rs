@@ -28,6 +28,7 @@ extern crate url;
 extern crate libc;
 extern crate md5;
 extern crate num_cpus;
+extern crate openssl_probe;
 #[macro_use] extern crate log;
 extern crate rustc_serialize;
 #[macro_use] extern crate if_chain;

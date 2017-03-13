@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use chrono;
 use log;
+use openssl_probe::init_ssl_cert_env_vars;
 
 use super::{Result, ResultExt, Error};
 use super::sdk::{Sdk, DumpOptions};
@@ -40,6 +41,10 @@ impl<W: io::Write + Send + ?Sized> log::Log for SimpleLogger<W> {
                      record.args()).ok();
         }
     }
+}
+
+fn setup_openssl() {
+    init_ssl_cert_env_vars();
 }
 
 fn setup_logging(config: &Config) -> Result<()> {
@@ -112,6 +117,8 @@ fn config_from_matches(matches: &ArgMatches) -> Result<Config> {
 }
 
 fn execute() -> Result<()> {
+    setup_openssl();
+
     let app = App::new("sentry-symbolserver")
         .version(VERSION)
         .about("This tool implements an Apple SDK processor and server.")
