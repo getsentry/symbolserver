@@ -41,6 +41,28 @@ pub struct Symbol<'a> {
     addr: u64,
 }
 
+/// Represents a symbol iterator
+pub struct SymbolIter<'a> {
+    memdb: &'a MemDb<'a>,
+    uuid: &'a Uuid,
+    index: &'a [IndexItem],
+    pos: usize,
+}
+
+impl<'a> Iterator for SymbolIter<'a> {
+    type Item = Result<Symbol<'a>>;
+
+    fn next(&mut self) -> Option<Result<Symbol<'a>>> {
+        if self.pos < self.index.len() {
+            let ii = &self.index[self.pos];
+            self.pos += 1;
+            Some(self.memdb.index_item_to_symbol(ii, self.uuid))
+        } else {
+            None
+        }
+    }
+}
+
 impl<'a> fmt::Display for Symbol<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:016x} {} ({})", self.addr(), self.symbol(), self.object_name())
@@ -166,14 +188,8 @@ impl<'a> MemDb<'a> {
         }
     }
 
-    fn get_cstr(&self, offset: usize) -> Result<&str> {
-        unsafe {
-            Ok(from_utf8(CStr::from_ptr(self.backing.buffer().as_ptr().offset(
-                offset as isize) as *const c_char).to_bytes())?)
-        }
-    }
-
-    fn find_uuid(&self, object_name: &str, arch: &str) -> Result<Option<&Uuid>> {
+    /// Given an object namd and architecture this finds the image UUID in the file.
+    pub fn find_uuid(&self, object_name: &str, arch: &str) -> Result<Option<&Uuid>> {
         let header = self.backing.header()?;
         let mut offset = header.tagged_object_names_start as usize;
         let refstr = format!("{}:{}", object_name, arch);
@@ -187,6 +203,47 @@ impl<'a> MemDb<'a> {
             uuid_idx += 1;
         }
         Ok(None)
+    }
+
+    /// Given object name and architecture or UUID as string, this finds the
+    /// UUID in the file.
+    pub fn find_uuid_fuzzy(&self, name_or_uuid: &str) -> Result<Option<&Uuid>> {
+        if let Ok(parsed_uuid) = name_or_uuid.parse::<Uuid>() {
+            let uuids = self.uuids()?;
+            if let Some(item) = binsearch_by_key(uuids, parsed_uuid, |item| *item.uuid()) {
+                return Ok(Some(item.uuid()));
+            }
+            return Ok(None)
+        }
+        let mut parts = name_or_uuid.rsplitn(2, ':');
+        if_chain! {
+            if let Some(arch) = parts.next();
+            if let Some(name) = parts.next();
+            if let Some(uuid) = self.find_uuid(name, arch)?;
+            then {
+                Ok(Some(uuid))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+
+    /// Returns the symbols for an Uuid
+    pub fn iter_symbols(&'a self, uuid: &'a Uuid) -> Result<SymbolIter<'a>> {
+        let index = self.get_index(uuid)?.unwrap_or(&[][..]);
+        Ok(SymbolIter {
+            memdb: self,
+            uuid: uuid,
+            index: index,
+            pos: 0,
+        })
+    }
+
+    fn get_cstr(&self, offset: usize) -> Result<&str> {
+        unsafe {
+            Ok(from_utf8(CStr::from_ptr(self.backing.buffer().as_ptr().offset(
+                offset as isize) as *const c_char).to_bytes())?)
+        }
     }
 
     fn lookup_impl(&'a self, uuid: &Uuid, addr: u64) -> Result<Option<Symbol<'a>>>
