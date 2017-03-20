@@ -75,8 +75,8 @@ impl<'a> Iterator for SymbolIterator<'a> {
     fn next(&mut self) -> Option<(u64, &'a str)> {
         let iter = try_opt!(self.iter.as_mut());
         while let Some(sym) = iter.next() {
-            if let Symbol::Defined { ref name, external, ref section, entry, .. } = sym {
-                if !external && name.is_some() {
+            if let Symbol::Defined { ref name, ref section, entry, .. } = sym {
+                if name.is_some() {
                     if let &Some(ref sect) = section {
                         let Section { ref sectname, ref segname, .. } = **sect;
                         if segname == SEG_TEXT && sectname == SECT_TEXT {
