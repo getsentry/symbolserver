@@ -337,6 +337,7 @@ impl MemDbStash {
                 if let Some(local_sdk) = local_state.get_sdk(sdk_info) {
                     if local_sdk != sdk {
                         self.update_sdk(&sdk, &options)?;
+                        self.memdbs.write().unwrap().remove(sdk_info);
                         changed_something = true;
                     } else if options.user_facing {
                         println!("  ⸰ Unchanged {}", sdk_info);
