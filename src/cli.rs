@@ -261,7 +261,7 @@ fn dump_object_action(config: &Config, sdk_id: &str, name_or_uuid: &str) -> Resu
 
     for item_rv in memdb.iter_symbols(uuid)? {
         let item = item_rv?;
-        println!("{:>014} {}", item.addr(), item.symbol());
+        println!("{:>014x} {}", item.addr(), item.symbol());
     }
     Ok(())
 }
