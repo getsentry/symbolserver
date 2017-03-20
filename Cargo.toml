@@ -1,6 +1,6 @@
 [package]
 name = "sentry-symbolserver"
-version = "1.5.1"
+version = "1.6.0"
 authors = ["Sentry <hello@getsentry.com>"]
 
 [lib]
