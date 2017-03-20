@@ -11,7 +11,7 @@ use log;
 use openssl_probe::init_ssl_cert_env_vars;
 
 use super::{Result, ResultExt, Error};
-use super::sdk::{Sdk, DumpOptions};
+use super::sdk::{Sdk, SdkInfo, DumpOptions};
 use super::config::Config;
 use super::constants::VERSION;
 use super::memdb::stash::{MemDbStash, SyncOptions};
@@ -184,7 +184,20 @@ fn execute() -> Result<()> {
                 .arg(Arg::with_name("output-path")
                      .short("o")
                      .long("output")
-                     .help("Where the result should be stored")));
+                     .help("Where the result should be stored")))
+        .subcommand(
+            SubCommand::with_name("dump-object")
+                .about("Dumps an object from a memdb in the stash")
+                .arg(Arg::with_name("sdk_id")
+                     .index(1)
+                     .value_name("SDK_ID")
+                     .required(true)
+                     .help("The SDK id to dump"))
+                .arg(Arg::with_name("name_or_uuid")
+                     .index(2)
+                     .value_name("NAME_OR_UUID")
+                     .required(true)
+                     .help("The object to dump")));
     let matches = app.get_matches();
 
     let cfg = config_from_matches(&matches)?;
@@ -194,6 +207,9 @@ fn execute() -> Result<()> {
         convert_sdk_action(matches.values_of("path").unwrap().collect(),
                            matches.value_of("output-path").unwrap_or("."),
                            matches.is_present("compress"))?;
+    } else if let Some(matches) = matches.subcommand_matches("dump-object") {
+        dump_object_action(&cfg, matches.value_of("sdk_id").unwrap(),
+                           matches.value_of("name_or_uuid").unwrap())?;
     } else if let Some(matches) = matches.subcommand_matches("run") {
         run_action(&cfg, matches)?;
     } else if let Some(_matches) = matches.subcommand_matches("sync") {
@@ -232,6 +248,21 @@ fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
         sdk.dump_memdb(f, options)?;
     }
 
+    Ok(())
+}
+
+fn dump_object_action(config: &Config, sdk_id: &str, name_or_uuid: &str) -> Result<()> {
+    let stash = MemDbStash::new(config)?;
+    let info = SdkInfo::from_filename(sdk_id).ok_or_else(||
+        Error::from("Invalid SDK ID"))?;
+    let memdb = stash.get_memdb(&info)?;
+    let uuid = memdb.find_uuid_fuzzy(name_or_uuid)?.ok_or_else(||
+        Error::from("Object not found in SDK"))?;
+
+    for item_rv in memdb.iter_symbols(uuid)? {
+        let item = item_rv?;
+        println!("{:>014} {}", item.addr(), item.symbol());
+    }
     Ok(())
 }
 
