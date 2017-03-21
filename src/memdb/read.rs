@@ -211,7 +211,9 @@ impl<'a> MemDb<'a> {
         if let Ok(parsed_uuid) = name_or_uuid.parse::<Uuid>() {
             let uuids = self.uuids()?;
             if let Some(item) = binsearch_by_key(uuids, parsed_uuid, |item| *item.uuid()) {
-                return Ok(Some(item.uuid()));
+                if item.uuid() == &parsed_uuid {
+                    return Ok(Some(item.uuid()));
+                }
             }
             return Ok(None)
         }
