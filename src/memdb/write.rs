@@ -208,7 +208,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         self.progress.add_bar(3);
 
         let mut header = MemDbHeader { ..Default::default() };
-        header.version = 1;
+        header.version = 2;
         header.sdk_info.set_from_sdk_info(&self.info);
 
         self.progress.inc(1);

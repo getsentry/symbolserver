@@ -133,7 +133,7 @@ impl<'a> Symbol<'a> {
 fn load_memdb<'a>(backing: Backing<'a>) -> Result<MemDb<'a>> {
     let info = {
         let header = backing.header()?;
-        if header.version != 1 {
+        if header.version != 2 {
             return Err(ErrorKind::UnsupportedMemDbVersion.into());
         }
         header.sdk_info.to_sdk_info()
