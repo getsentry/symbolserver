@@ -53,19 +53,28 @@ impl<'a> Iterator for SymbolIter<'a> {
     type Item = Result<Symbol<'a>>;
 
     fn next(&mut self) -> Option<Result<Symbol<'a>>> {
-        if self.pos < self.index.len() {
-            let ii = &self.index[self.pos];
-            self.pos += 1;
-            Some(self.memdb.index_item_to_symbol(ii, self.uuid))
-        } else {
-            None
+        loop {
+            if self.pos < self.index.len() {
+                let ii = &self.index[self.pos];
+                self.pos += 1;
+                match self.memdb.index_item_to_symbol(ii, self.uuid) {
+                    Ok(Some(sym)) => { return Some(Ok(sym)); }
+                    Ok(None) => { continue; }
+                    Err(err) => { return Some(Err(err)); }
+                }
+            } else {
+                return None;
+            }
         }
     }
 }
 
 impl<'a> fmt::Display for Symbol<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:016x} {} ({})", self.addr(), self.symbol(), self.object_name())
+        write!(f, "{:016x} {} ({})",
+               self.addr(),
+               self.symbol(),
+               self.object_name())
     }
 }
 
@@ -116,12 +125,12 @@ impl<'a> Symbol<'a> {
 
     /// The object name a string
     pub fn object_name(&self) -> &str {
-        return &self.object_name
+        &self.object_name
     }
 
     /// The symbol as string
     pub fn symbol(&self) -> &str {
-        return &self.symbol
+        &self.symbol
     }
 
     /// The symbol address as u64
@@ -252,7 +261,7 @@ impl<'a> MemDb<'a> {
     {
         if let Some(index) = self.get_index(uuid)? {
             if let Some(item) = binsearch_by_key(index, addr, |item| item.addr()) {
-                return Ok(Some(self.index_item_to_symbol(item, uuid)?));
+                return Ok(self.index_item_to_symbol(item, uuid)?);
             }
         }
         Ok(None)
@@ -315,20 +324,28 @@ impl<'a> MemDb<'a> {
         }
     }
 
-    fn get_object_name(&'a self, src_id: usize) -> Result<Cow<'a, str>> {
-        self.get_string(&self.object_names()?[src_id])
+    fn get_object_name(&'a self, src_id: u16) -> Result<Cow<'a, str>> {
+        self.get_string(&self.object_names()?[src_id as usize])
     }
 
-    fn get_symbol(&'a self, sym_id: usize) -> Result<Cow<'a, str>> {
-        self.get_string(&self.symbols()?[sym_id])
+    fn get_symbol(&'a self, sym_id: Option<u32>) -> Result<Option<Cow<'a, str>>> {
+        if let Some(sym_id) = sym_id {
+            Ok(Some(self.get_string(&self.symbols()?[sym_id as usize])?))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn index_item_to_symbol(&'a self, ii: &IndexItem, uuid: &Uuid) -> Result<Symbol<'a>> {
-        Ok(Symbol {
-            object_uuid: uuid.clone(),
-            object_name: self.get_object_name(ii.src_id())?,
-            symbol: self.get_symbol(ii.sym_id())?,
-            addr: ii.addr(),
-        })
+    fn index_item_to_symbol(&'a self, ii: &IndexItem, uuid: &Uuid) -> Result<Option<Symbol<'a>>> {
+        if let Some(symbol) = self.get_symbol(ii.sym_id())? {
+            Ok(Some(Symbol {
+                object_uuid: uuid.clone(),
+                object_name: self.get_object_name(ii.src_id())?,
+                symbol: symbol,
+                addr: ii.addr(),
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

@@ -114,24 +114,24 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         })
     }
 
-    fn add_symbol(&mut self, sym: &str) -> usize {
+    fn add_symbol(&mut self, sym: &str) -> u32 {
         if let Some(&sym_id) = self.symbols_map.get(sym) {
-            return sym_id as usize;
+            return sym_id as u32;
         }
         let symbol_count = self.symbols.len();
         self.symbols.push(sym.to_string());
         self.symbols_map.insert(sym.to_string(), symbol_count as u32);
-        symbol_count
+        symbol_count as u32
     }
 
-    fn add_object_name(&mut self, src: &str) -> usize {
+    fn add_object_name(&mut self, src: &str) -> u16 {
         if let Some(&src_id) = self.object_names_map.get(src) {
-            return src_id as usize;
+            return src_id as u16;
         }
         let object_count = self.object_names.len();
         self.object_names.push(src.to_string());
         self.object_names_map.insert(src.to_string(), object_count as u16);
-        object_count
+        object_count as u16
     }
 
     pub fn write_object(&mut self, obj: &Object, filename: Option<&str>,
@@ -158,12 +158,19 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         let mut index = vec![];
         for (idx, (addr, sym)) in symbols.iter().enumerate() {
             let sym_id = self.add_symbol(sym);
-            index.push(IndexItem::new(addr - var.vmaddr(), src_id, sym_id));
+            index.push(IndexItem::new(addr - var.vmaddr(), src_id, Some(sym_id)));
             if idx % 100 == 0 {
                 self.progress.tick();
             }
             self.symbol_count += 1;
         }
+
+        // write an end marker if we know the image size
+        if var.vmsize() > 0 {
+            index.push(IndexItem::new(var.vmsize(), src_id, None));
+            self.symbol_count += 1;
+        }
+
         index.sort_by_key(|item| item.addr());
 
         // register variant and uuid

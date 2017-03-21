@@ -32,7 +32,7 @@ pub struct PackedSdkInfo {
     pub version_major: u16,
     pub version_minor: u16,
     pub version_patchlevel: u16,
-    pub build: [u8; 40],
+    pub build: [u8; 24],
 }
 
 /// A stored slice that points to a memory region in the memdb file
@@ -141,12 +141,12 @@ impl StoredSlice {
 
 impl IndexItem {
     /// Creates a new indexed symbol in the index
-    pub fn new(addr: u64, src_id: usize, sym_id: usize) -> IndexItem {
+    pub fn new(addr: u64, src_id: u16, sym_id: Option<u32>) -> IndexItem {
         IndexItem {
             addr_low: (addr & 0xffffffff) as u32,
             addr_high: ((addr >> 32) &0xffff) as u16,
-            src_id: src_id as u16,
-            sym_id: sym_id as u32,
+            src_id: src_id,
+            sym_id: sym_id.unwrap_or(!0),
         }
     }
 
@@ -156,12 +156,16 @@ impl IndexItem {
     }
 
     /// The ID of the source variant
-    pub fn src_id(&self) -> usize {
-        self.src_id as usize
+    pub fn src_id(&self) -> u16 {
+        self.src_id
     }
 
     /// The ID of the symbol
-    pub fn sym_id(&self) -> usize {
-        self.sym_id as usize
+    pub fn sym_id(&self) -> Option<u32> {
+        if self.sym_id == !0 {
+            None
+        } else {
+            Some(self.sym_id)
+        }
     }
 }
