@@ -32,7 +32,7 @@ pub struct PackedSdkInfo {
     pub version_major: u16,
     pub version_minor: u16,
     pub version_patchlevel: u16,
-    pub build: [u8; 10],
+    pub build: [u8; 40],
 }
 
 /// A stored slice that points to a memory region in the memdb file
