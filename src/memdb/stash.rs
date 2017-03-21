@@ -20,7 +20,7 @@ use super::super::config::Config;
 use super::super::sdk::SdkInfo;
 use super::super::s3::S3;
 use super::super::utils::{ProgressIndicator, copy_with_progress, HumanDuration,
-                          IgnorePatterns};
+                          IgnorePatterns, Rev};
 use super::super::{Result, ResultExt, ErrorKind};
 
 /// Helper for synching
@@ -432,14 +432,13 @@ impl MemDbStash {
         if let Some(sdk_info) = SdkInfo::from_filename(sdk_id) {
             // find all sdks that have a fuzzy match
             for other in local_state.sdks() {
-                if let Some(quality) = other.info().get_fuzzy_match(&sdk_info) {
-                    rv.push((quality, other.info().clone()));
-                }
+                let q = other.info().get_fuzzy_match(&sdk_info).unwrap_or(99999);
+                rv.push((q, other.info().clone()));
             }
+
+            rv.sort_by_key(|&(q, ref info)| (q, info > &sdk_info, Rev(info.clone())));
         }
 
-        rv.sort_by_key(|&(q, _)| q);
-
-        Ok(rv.into_iter().map(|(_, info)| info).collect())
+        Ok(rv.into_iter().take(10).map(|(_, info)| info).collect())
     }
 }

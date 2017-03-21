@@ -8,6 +8,7 @@ use std::os::unix::io::RawFd;
 use std::result::Result as StdResult;
 use std::io::{Read, Write};
 use std::sync::Mutex;
+use std::cmp::Ordering;
 
 use pbr;
 use globset;
@@ -21,6 +22,22 @@ pub const SD_LISTEN_FDS_START: RawFd = 3;
 /// Helper for serializing/deserializing addresses in string format
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Addr(pub u64);
+
+/// Reverse sort helper
+#[derive(PartialEq, Eq)]
+pub struct Rev<T: Ord+PartialOrd+Eq+PartialEq>(pub T);
+
+impl<T: Ord+PartialOrd+Eq+PartialEq> PartialOrd for Rev<T> {
+    fn partial_cmp(&self, other: &Rev<T>) -> Option<Ordering> {
+        other.0.partial_cmp(&self.0)
+    }
+}
+
+impl<T: Ord+PartialOrd+Eq+PartialEq> Ord for Rev<T> {
+    fn cmp(&self, other: &Rev<T>) -> Ordering {
+        other.0.cmp(&self.0)
+    }
+}
 
 /// Helper for formatting durations.
 pub struct HumanDuration(pub Duration);

@@ -197,7 +197,15 @@ fn execute() -> Result<()> {
                      .index(2)
                      .value_name("NAME_OR_UUID")
                      .required(true)
-                     .help("The object to dump")));
+                     .help("The object to dump")))
+        .subcommand(
+            SubCommand::with_name("sdk-fuzzy-match")
+                .about("Given an SDK ID finds the fuzzy matches in order of quality")
+                .arg(Arg::with_name("sdk_id")
+                     .index(1)
+                     .value_name("SDK_ID")
+                     .required(true)
+                     .help("The SDK id to dump")));
     let matches = app.get_matches();
 
     let cfg = config_from_matches(&matches)?;
@@ -210,6 +218,8 @@ fn execute() -> Result<()> {
     } else if let Some(matches) = matches.subcommand_matches("dump-object") {
         dump_object_action(&cfg, matches.value_of("sdk_id").unwrap(),
                            matches.value_of("name_or_uuid").unwrap())?;
+    } else if let Some(matches) = matches.subcommand_matches("sdk-fuzzy-match") {
+        sdk_fuzzy_match_action(&cfg, matches.value_of("sdk_id").unwrap())?;
     } else if let Some(matches) = matches.subcommand_matches("run") {
         run_action(&cfg, matches)?;
     } else if let Some(_matches) = matches.subcommand_matches("sync") {
@@ -262,6 +272,15 @@ fn dump_object_action(config: &Config, sdk_id: &str, name_or_uuid: &str) -> Resu
     for item_rv in memdb.iter_symbols(uuid)? {
         let item = item_rv?;
         println!("{:>014x} {}", item.addr(), item.symbol());
+    }
+    Ok(())
+}
+
+fn sdk_fuzzy_match_action(config: &Config, sdk_id: &str) -> Result<()> {
+    let stash = MemDbStash::new(config)?;
+    let sdk_infos = stash.fuzzy_match_sdk_id(sdk_id)?;
+    for info in sdk_infos {
+        println!("> {}", info.sdk_id());
     }
     Ok(())
 }
