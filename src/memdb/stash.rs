@@ -289,6 +289,9 @@ impl MemDbStash {
         match self.fetch_remote_state() {
             Ok(remote_state) => {
                 for sdk in remote_state.sdks() {
+                    if self.sdk_is_ignored(sdk.info()) {
+                        continue;
+                    }
                     if let Some(local_sdk) = local_state.get_sdk(sdk.info()) {
                         if local_sdk != sdk {
                             different += 1;
