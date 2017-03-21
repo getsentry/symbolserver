@@ -272,6 +272,10 @@ impl<'a> MemDb<'a> {
     fn get_index(&self, uuid: &Uuid) -> Result<Option<&[IndexItem]>> {
         let uuids = self.uuids()?;
         if let Some(iuuid) = binsearch_by_key(uuids, *uuid, |item| *item.uuid()) {
+            // only consider exact matches
+            if iuuid.uuid() != uuid {
+                return Ok(None);
+            }
             let variant_slice = &self.variants()?[iuuid.idx()];
             unsafe {
                 let data = self.backing.get_data(variant_slice.offset(),
