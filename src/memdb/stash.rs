@@ -101,6 +101,10 @@ impl SdkSyncState {
         self.sdks.insert(sdk.info().memdb_filename().to_string(), sdk.clone());
     }
 
+    pub fn remove_sdk(&mut self, info: &SdkInfo) {
+        self.sdks.remove(&info.memdb_filename());
+    }
+
     pub fn sdks<'a>(&'a self) -> RemoteSdkIter<'a> {
         self.sdks.values()
     }
@@ -321,7 +325,7 @@ impl MemDbStash {
     /// Synchronize the local stash with the server
     pub fn sync(&self, options: SyncOptions) -> Result<()> {
         let mut local_state = self.read_local_state()?;
-        let mut remote_state = self.fetch_remote_state()?;
+        let remote_state = self.fetch_remote_state()?;
         let started = UTC::now();
         let mut changed = false;
         let mut to_delete : HashSet<_> = HashSet::from_iter(
@@ -366,6 +370,7 @@ impl MemDbStash {
         }
 
         for sdk_info in to_delete.iter() {
+            local_state.remove_sdk(sdk_info);
             if let Some(sdk) = local_state.get_sdk(sdk_info) {
                 self.remove_sdk(sdk, &options)?;
                 self.memdbs.write().unwrap().remove(&sdk.info());
@@ -379,9 +384,9 @@ impl MemDbStash {
             info!("finished sync in {}", HumanDuration(duration));
         }
 
-        // if we get this far, the remote state is indeed the local state.
-        remote_state.revision = Some(local_state.revision.unwrap_or(0) + 1);
-        self.save_local_state(&remote_state)?;
+        // save us one last time
+        local_state.revision = Some(local_state.revision.unwrap_or(0) + 1);
+        self.save_local_state(&local_state)?;
 
         Ok(())
     }
