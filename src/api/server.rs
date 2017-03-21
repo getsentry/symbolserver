@@ -189,6 +189,7 @@ impl ApiServer {
                         "/health" => handlers::healthcheck_handler,
                         "/lookup" => handlers::lookup_symbol_handler,
                         "/sdks" => handlers::list_sdks_handler,
+                        "/version" => handlers::version_handler,
                         _ => not_found,
                     }
                 }

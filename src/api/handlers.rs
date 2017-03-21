@@ -8,6 +8,7 @@ use hyper::method::Method;
 use uuid::Uuid;
 
 use super::super::Result;
+use super::super::constants::VERSION;
 use super::super::utils::Addr;
 use super::super::sdk::SdkInfo;
 use super::super::memdb::read::{MemDb, Symbol as MemDbSymbol};
@@ -58,6 +59,11 @@ struct SymbolResponse {
 #[derive(Serialize)]
 struct SdksResponse {
     sdks: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct VersionResponse {
+    version: String,
 }
 
 struct LocalMemDbCache<'a> {
@@ -142,5 +148,14 @@ pub fn list_sdks_handler(ctx: &ServerContext, req: Request) -> Result<ApiRespons
     assert_method!(req, Method::Get);
     ApiResponse::new(SdksResponse {
         sdks: ctx.stash.list_sdks()?.into_iter().map(|x| x.sdk_id()).collect(),
+    }, StatusCode::Ok)
+}
+
+/// Server version info.
+pub fn version_handler(_ctx: &ServerContext, req: Request) -> Result<ApiResponse>
+{
+    assert_method!(req, Method::Get);
+    ApiResponse::new(VersionResponse {
+        version: VERSION.to_string(),
     }, StatusCode::Ok)
 }
