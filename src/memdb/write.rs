@@ -158,7 +158,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         let mut index = vec![];
         for (idx, (addr, sym)) in symbols.iter().enumerate() {
             let sym_id = self.add_symbol(sym);
-            index.push(IndexItem::new(addr, src_id, sym_id));
+            index.push(IndexItem::new(addr - var.vmaddr(), src_id, sym_id));
             if idx % 100 == 0 {
                 self.progress.tick();
             }
