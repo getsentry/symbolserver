@@ -9,7 +9,7 @@ use std::mem;
 use std::slice;
 use std::path::Path;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 
 use uuid::Uuid;
 use xz2::write::XzEncoder;
@@ -32,6 +32,7 @@ struct MemDbBuilder<W> {
     object_names_map: HashMap<String, u16>,
     object_uuid_mapping: Vec<(String, Uuid)>,
     variant_uuids: Vec<IndexedUuid>,
+    variant_uuids_seen: HashSet<Uuid>,
     variants: Vec<Vec<IndexItem>>,
     symbol_count: usize,
     progress: ProgressIndicator,
@@ -60,6 +61,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             object_names_map: HashMap::new(),
             object_uuid_mapping: vec![],
             variant_uuids: vec![],
+            variant_uuids_seen: HashSet::new(),
             variants: vec![],
             symbol_count: 0,
             progress: if opts.show_progress_bar {
@@ -142,15 +144,25 @@ impl<W: Write + Seek> MemDbBuilder<W> {
             if let Some(fname) = Path::new(src).file_name().and_then(|x| x.to_str()) {
                 self.progress.set_message(fname);
             }
-            if variant.uuid().is_some() {
-                self.write_object_variant(&obj, &variant, src)?;
+            if let Some(uuid) = variant.uuid() {
+                self.write_object_variant(&obj, &variant, &uuid, src)?;
             }
         }
         Ok(())
     }
 
-    pub fn write_object_variant(&mut self, obj: &Object, var: &Variant,
-                                src: &str) -> Result<()> {
+    fn write_object_variant(&mut self, obj: &Object, var: &Variant,
+                            uuid: &Uuid, src: &str) -> Result<bool> {
+        self.object_uuid_mapping.push((
+            format!("{}:{}", src, var.arch()),
+            *uuid
+        ));
+
+        if self.variant_uuids_seen.contains(uuid) {
+            return Ok(false);
+        }
+        self.variant_uuids_seen.insert(*uuid);
+
         let mut symbols = obj.symbols(var.arch())?;
         let src_id = self.add_object_name(src);
 
@@ -174,14 +186,10 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         index.sort_by_key(|item| item.addr());
 
         // register variant and uuid
-        self.variant_uuids.push(IndexedUuid::new(&var.uuid().unwrap(), self.variants.len()));
-        self.object_uuid_mapping.push((
-            format!("{}:{}", src, var.arch()),
-            var.uuid().unwrap()
-        ));
+        self.variant_uuids.push(IndexedUuid::new(uuid, self.variants.len()));
         self.variants.push(index);
 
-        Ok(())
+        Ok(true)
     }
 
     fn make_string_slices(&self, strings: &[String], _try_compress: bool) -> Result<Vec<StoredSlice>> {
