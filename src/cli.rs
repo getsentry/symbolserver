@@ -3,13 +3,15 @@ use std::fs;
 use std::io;
 use std::env;
 use std::process;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use chrono;
 use log;
+use multipart::client::lazy::Multipart;
 use openssl_probe::init_ssl_cert_env_vars;
+use tempdir::TempDir;
 
 use super::{Result, ResultExt, Error};
 use super::sdk::{Sdk, SdkInfo, DumpOptions};
@@ -17,6 +19,7 @@ use super::config::Config;
 use super::constants::VERSION;
 use super::memdb::stash::{MemDbStash, SyncOptions};
 use super::api::server::{ApiServer, BindOptions};
+use super::s3::new_hyper_client;
 
 struct SimpleLogger<W: ?Sized> {
     f: Mutex<Box<W>>,
@@ -206,7 +209,11 @@ fn execute() -> Result<()> {
                      .short("c")
                      .long("compress")
                      .help("Write compressed files instead."))
-                .arg(Arg::with_name("output-path")
+                .arg(Arg::with_name("share_to")
+                     .hidden(true)
+                     .long("share-to")
+                     .value_name("URL"))
+                .arg(Arg::with_name("output_path")
                      .short("o")
                      .long("output")
                      .help("Where the result should be stored")))
@@ -244,9 +251,18 @@ fn execute() -> Result<()> {
         } else {
             return Err(Error::from("No paths provided"));
         };
-        convert_sdk_action(paths,
-                           matches.value_of("output-path").unwrap_or("."),
-                           matches.is_present("compress"))?;
+        let tempdir;
+        let (share_to, compress, output_path) = match matches.value_of("share_to") {
+            Some(value) => {
+                tempdir = TempDir::new("symbolserver")?;
+                (Some(value), true, tempdir.path())
+            }
+            None => {
+                (None, matches.is_present("compress"),
+                 Path::new(matches.value_of("output_path").unwrap_or(".")))
+            }
+        };
+        convert_sdk_action(paths, output_path, compress, share_to)?;
     } else if let Some(matches) = matches.subcommand_matches("dump-object") {
         dump_object_action(&cfg, matches.value_of("sdk_id").unwrap(),
                            matches.value_of("name_or_uuid").unwrap())?;
@@ -261,7 +277,8 @@ fn execute() -> Result<()> {
     Ok(())
 }
 
-fn convert_sdk_action(paths: Vec<PathBuf>, output_path: &str, compress: bool)
+fn convert_sdk_action(paths: Vec<PathBuf>, output_path: &Path, compress: bool,
+                      share_to: Option<&str>)
     -> Result<()>
 {
     let dst_base = env::current_dir().unwrap().join(output_path);
@@ -288,8 +305,20 @@ fn convert_sdk_action(paths: Vec<PathBuf>, output_path: &str, compress: bool)
             ..Default::default()
         };
         sdk.dump_memdb(f, options)?;
+
+        if let Some(url) = share_to {
+            share_sdk(&dst, url)?;
+        }
     }
 
+    Ok(())
+}
+
+fn share_sdk(path: &Path, url: &str) -> Result<()> {
+    let client = new_hyper_client()?;
+    Multipart::new()
+        .add_file("file", path)
+        .client_request(&client, url)?;
     Ok(())
 }
 

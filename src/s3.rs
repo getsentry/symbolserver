@@ -63,7 +63,7 @@ fn unquote_etag(quoted_etag: Option<String>) -> Option<String> {
     })
 }
 
-fn new_hyper_client() -> Result<HyperClient> {
+pub fn new_hyper_client() -> Result<HyperClient> {
     let ssl = NativeTlsClient::new().chain_err(||
         format!("Couldn't create NativeTlsClient."))?;
     let mut client = if let Ok(proxy_url) = env::var("http_proxy") {
