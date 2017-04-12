@@ -3,6 +3,7 @@ use std::fs;
 use std::io;
 use std::env;
 use std::process;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
@@ -116,6 +117,28 @@ fn config_from_matches(matches: &ArgMatches) -> Result<Config> {
     Ok(cfg)
 }
 
+fn get_default_sdks() -> Result<Vec<PathBuf>> {
+    let mut rv = vec![];
+    let path = env::home_dir().ok_or_else(|| {
+        Error::from("Could not find home folder")
+    })?.join("Library/Developer/Xcode/iOS DeviceSupport");
+    for entry_rv in fs::read_dir(path).chain_err(
+        || Error::from("Could not find iOS DeviceSupport"))?
+    {
+        let entry = entry_rv?;
+        let md = entry.metadata()?;
+        if_chain! {
+            if md.is_dir();
+            if let Ok(plist_md) = entry.path().join("Info.plist").metadata();
+            if plist_md.is_file();
+            then {
+                rv.push(entry.path().to_path_buf());
+            }
+        }
+    }
+    Ok(rv)
+}
+
 fn execute() -> Result<()> {
     setup_openssl();
 
@@ -171,10 +194,12 @@ fn execute() -> Result<()> {
         .subcommand(
             SubCommand::with_name("convert-sdk")
                 .about("Converts an SDK into a memdb file")
+                .arg(Arg::with_name("default_location")
+                     .long("default-location")
+                     .help("Find SDKs at the default location"))
                 .arg(Arg::with_name("path")
                      .index(1)
                      .value_name("PATH")
-                     .required(true)
                      .multiple(true)
                      .help("Path to the support folder"))
                 .arg(Arg::with_name("compress")
@@ -212,7 +237,14 @@ fn execute() -> Result<()> {
     setup_logging(&cfg)?;
 
     if let Some(matches) = matches.subcommand_matches("convert-sdk") {
-        convert_sdk_action(matches.values_of("path").unwrap().collect(),
+        let paths = if matches.is_present("default_location") {
+            get_default_sdks()?
+        } else if let Some(paths) = matches.values_of("path") {
+            paths.map(|x| PathBuf::from(x)).collect()
+        } else {
+            return Err(Error::from("No paths provided"));
+        };
+        convert_sdk_action(paths,
                            matches.value_of("output-path").unwrap_or("."),
                            matches.is_present("compress"))?;
     } else if let Some(matches) = matches.subcommand_matches("dump-object") {
@@ -229,7 +261,7 @@ fn execute() -> Result<()> {
     Ok(())
 }
 
-fn convert_sdk_action(paths: Vec<&str>, output_path: &str, compress: bool)
+fn convert_sdk_action(paths: Vec<PathBuf>, output_path: &str, compress: bool)
     -> Result<()>
 {
     let dst_base = env::current_dir().unwrap().join(output_path);
