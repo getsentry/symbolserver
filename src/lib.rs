@@ -26,6 +26,7 @@ extern crate chrono;
 extern crate hyper;
 extern crate hyper_native_tls;
 extern crate multipart;
+extern crate mime;
 extern crate url;
 extern crate libc;
 extern crate md5;

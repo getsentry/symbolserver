@@ -6,7 +6,7 @@ use std::env;
 use std::panic;
 use std::os::unix::io::RawFd;
 use std::result::Result as StdResult;
-use std::io::{Read, Write};
+use std::io::{Read, Write, Seek, SeekFrom};
 use std::sync::Mutex;
 use std::cmp::Ordering;
 
@@ -208,6 +208,11 @@ pub struct ProgressIndicator {
     pb: Mutex<Option<pbr::ProgressBar<io::Stdout>>>,
 }
 
+pub struct ProgressReader<R: Read + Seek> {
+    rdr: R,
+    pb: ProgressIndicator,
+}
+
 fn make_progress_bar(count: usize) -> pbr::ProgressBar<io::Stdout> {
     let mut pb = pbr::ProgressBar::new(count as u64);
     pb.tick_format("⠇⠋⠙⠸⠴⠦");
@@ -234,6 +239,16 @@ impl ProgressIndicator {
         ProgressIndicator {
             pb: Mutex::new(None),
         }
+    }
+
+    /// Returns a reader that renders a progress bar
+    pub fn wrap_reader<R: Read + Seek>(mut rdr: R) -> Result<ProgressReader<R>> {
+        let len = rdr.seek(SeekFrom::End(0))?;
+        rdr.seek(SeekFrom::Start(0))?;
+        Ok(ProgressReader {
+            rdr: rdr,
+            pb: ProgressIndicator::new(len as usize),
+        })
     }
 
     /// Increments the progress bar by a step counter
@@ -294,6 +309,20 @@ pub fn copy_with_progress<R: ?Sized, W: ?Sized>(progress: &ProgressIndicator,
         writer.write_all(&buf[..len])?;
         written += len as u64;
         progress.inc(len);
+    }
+}
+
+impl<R: Read + Seek> ProgressReader<R> {
+    pub fn progress(&self) -> &ProgressIndicator {
+        &self.pb
+    }
+}
+
+impl<R: Read + Seek> Read for ProgressReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let rv = self.rdr.read(buf)?;
+        self.pb.inc(rv);
+        Ok(rv)
     }
 }
 

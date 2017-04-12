@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use chrono;
 use log;
+use mime::Mime;
 use multipart::client::lazy::Multipart;
 use openssl_probe::init_ssl_cert_env_vars;
 use tempdir::TempDir;
@@ -20,6 +21,7 @@ use super::constants::VERSION;
 use super::memdb::stash::{MemDbStash, SyncOptions};
 use super::api::server::{ApiServer, BindOptions};
 use super::s3::new_hyper_client;
+use super::utils::ProgressIndicator;
 
 struct SimpleLogger<W: ?Sized> {
     f: Mutex<Box<W>>,
@@ -307,18 +309,23 @@ fn convert_sdk_action(paths: Vec<PathBuf>, output_path: &Path, compress: bool,
         sdk.dump_memdb(f, options)?;
 
         if let Some(url) = share_to {
-            share_sdk(&dst, url)?;
+            share_sdk(&dst, url, sdk.info())?;
         }
     }
 
     Ok(())
 }
 
-fn share_sdk(path: &Path, url: &str) -> Result<()> {
+fn share_sdk(path: &Path, url: &str, info: &SdkInfo) -> Result<()> {
+    let mime: Mime = "application/x-xz".parse().unwrap();
     let client = new_hyper_client()?;
+    let f = fs::File::open(path)?;
+    let mut stream = ProgressIndicator::wrap_reader(f)?;
+    stream.progress().set_message("Uploading ...");
     Multipart::new()
-        .add_file("file", path)
+        .add_stream("file", &mut stream, Some(info.sdk_id()), Some(mime))
         .client_request(&client, url)?;
+    stream.progress().finish("Done Uploading SDK");
     Ok(())
 }
 
