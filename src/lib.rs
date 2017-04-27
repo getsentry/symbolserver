@@ -16,7 +16,7 @@ extern crate globset;
 extern crate mach_object;
 extern crate memmap;
 extern crate clap;
-extern crate pbr;
+extern crate indicatif;
 extern crate xz2;
 extern crate tempdir;
 extern crate tempfile;

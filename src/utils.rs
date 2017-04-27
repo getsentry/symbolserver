@@ -7,11 +7,10 @@ use std::panic;
 use std::os::unix::io::RawFd;
 use std::result::Result as StdResult;
 use std::io::{Read, Write, Seek, SeekFrom};
-use std::sync::Mutex;
 use std::cmp::Ordering;
 
-use pbr;
 use globset;
+use indicatif::ProgressBar;
 use chrono::Duration;
 use serde::{Serialize, Deserialize, de, ser};
 
@@ -202,97 +201,13 @@ pub fn run_isolated<F>(f: F)
     }
 }
 
-
-/// A thread safe progress bar
-pub struct ProgressIndicator {
-    pb: Mutex<Option<pbr::ProgressBar<io::Stdout>>>,
-}
-
 pub struct ProgressReader<R: Read + Seek> {
     rdr: R,
-    pb: ProgressIndicator,
-}
-
-fn make_progress_bar(count: usize) -> pbr::ProgressBar<io::Stdout> {
-    let mut pb = pbr::ProgressBar::new(count as u64);
-    pb.tick_format("⠇⠋⠙⠸⠴⠦");
-    pb.format("[■□□]");
-    pb.show_tick = true;
-    pb.show_speed = false;
-    pb.show_percent = false;
-    pb.show_counter = false;
-    pb.show_time_left = false;
-    pb.message(&format!("{: <44}", ""));
-    pb
-}
-
-impl ProgressIndicator {
-    /// Creates a new progress bar for a given count
-    pub fn new(count: usize) -> ProgressIndicator {
-        ProgressIndicator {
-            pb: Mutex::new(Some(make_progress_bar(count))),
-        }
-    }
-
-    /// Creates a dummy progress bar that does nothing
-    pub fn disabled() -> ProgressIndicator {
-        ProgressIndicator {
-            pb: Mutex::new(None),
-        }
-    }
-
-    /// Returns a reader that renders a progress bar
-    pub fn wrap_reader<R: Read + Seek>(mut rdr: R) -> Result<ProgressReader<R>> {
-        let len = rdr.seek(SeekFrom::End(0))?;
-        rdr.seek(SeekFrom::Start(0))?;
-        Ok(ProgressReader {
-            rdr: rdr,
-            pb: ProgressIndicator::new(len as usize),
-        })
-    }
-
-    /// Increments the progress bar by a step counter
-    pub fn inc(&self, step: usize) {
-        if let Some(ref mut pb) = *self.pb.lock().unwrap() {
-            pb.add(step as u64);
-        }
-    }
-
-    /// Ticks the progress bar without advancing
-    pub fn tick(&self) {
-        if let Some(ref mut pb) = *self.pb.lock().unwrap() {
-            pb.tick();
-        }
-    }
-
-    /// Sets the current message
-    pub fn set_message(&self, msg: &str) {
-        if let Some(ref mut pb) = *self.pb.lock().unwrap() {
-            pb.message(&format!("  ◦ {: <40}", msg));
-            pb.tick();
-        }
-    }
-
-    /// Marks the progress bar finished and replaces it with a message
-    pub fn finish(&self, msg: &str) {
-        if let Some(ref mut pb) = *self.pb.lock().unwrap() {
-            pb.finish_print(&format!("  ● {}", msg));
-            println!("");
-        }
-    }
-
-    /// Finishes the current bar and adds a new one.  If the progress bar
-    /// is disabled this does nothing instead.
-    pub fn add_bar(&self, count: usize) {
-        let mut pb = self.pb.lock().unwrap();
-        if !pb.is_none() {
-            *pb = Some(make_progress_bar(count));
-        }
-    }
+    pb: ProgressBar,
 }
 
 /// Like ``io::copy`` but advances a progress bar set to bytes.
-pub fn copy_with_progress<R: ?Sized, W: ?Sized>(progress: &ProgressIndicator,
+pub fn copy_with_progress<R: ?Sized, W: ?Sized>(progress: &ProgressBar,
                                                 reader: &mut R, writer: &mut W)
     -> io::Result<u64>
     where R: Read, W: Write
@@ -308,12 +223,23 @@ pub fn copy_with_progress<R: ?Sized, W: ?Sized>(progress: &ProgressIndicator,
         };
         writer.write_all(&buf[..len])?;
         written += len as u64;
-        progress.inc(len);
+        progress.inc(len as u64);
     }
 }
 
 impl<R: Read + Seek> ProgressReader<R> {
-    pub fn progress(&self) -> &ProgressIndicator {
+    pub fn new(mut rdr: R) -> Result<ProgressReader<R>> {
+        let len = rdr.seek(SeekFrom::End(0))?;
+        rdr.seek(SeekFrom::Start(0))?;
+        Ok(ProgressReader {
+            rdr: rdr,
+            pb: ProgressBar::new(len),
+        })
+    }
+}
+
+impl<R: Read + Seek> ProgressReader<R> {
+    pub fn progress(&self) -> &ProgressBar {
         &self.pb
     }
 }
@@ -321,7 +247,7 @@ impl<R: Read + Seek> ProgressReader<R> {
 impl<R: Read + Seek> Read for ProgressReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let rv = self.rdr.read(buf)?;
-        self.pb.inc(rv);
+        self.pb.inc(rv as u64);
         Ok(rv)
     }
 }

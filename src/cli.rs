@@ -4,6 +4,7 @@ use std::io;
 use std::env;
 use std::process;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use std::sync::Mutex;
 
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
@@ -13,6 +14,7 @@ use mime::Mime;
 use multipart::client::lazy::Multipart;
 use openssl_probe::init_ssl_cert_env_vars;
 use tempdir::TempDir;
+use indicatif::{style, HumanDuration};
 
 use super::{Result, ResultExt, Error};
 use super::sdk::{Sdk, SdkInfo, DumpOptions};
@@ -20,8 +22,8 @@ use super::config::Config;
 use super::constants::VERSION;
 use super::memdb::stash::{MemDbStash, SyncOptions};
 use super::api::server::{ApiServer, BindOptions};
+use super::utils::ProgressReader;
 use super::s3::new_hyper_client;
-use super::utils::ProgressIndicator;
 
 struct SimpleLogger<W: ?Sized> {
     f: Mutex<Box<W>>,
@@ -295,18 +297,21 @@ fn convert_sdk_action(paths: Vec<PathBuf>, output_path: &Path, compress: bool,
             dst.set_extension("memdbz");
         }
 
-        println!("SDK {} ({} {}):", sdk.info().name(),
-                 sdk.info().version(), sdk.info().build().unwrap_or("UNKNONW"));
+        println!("Processing {} SDK ({} {})",
+                 style(sdk.info().name()).green(),
+                 style(sdk.info().version()).cyan(),
+                 style(sdk.info().build().unwrap_or("UNKNOWN")).cyan());
+        let started = Instant::now();
 
         // make sure we close the file at the end, in case we want to
         // re-open it for compressing.
         let f = fs::File::create(&dst)?;
         let options = DumpOptions {
-            show_progress_bar: true,
             compress: compress,
             ..Default::default()
         };
         sdk.dump_memdb(f, options)?;
+        println!("Dumped in {}", HumanDuration(started.elapsed()));
 
         if let Some(url) = share_to {
             share_sdk(&dst, url, sdk.info())?;
@@ -320,12 +325,11 @@ fn share_sdk(path: &Path, url: &str, info: &SdkInfo) -> Result<()> {
     let mime: Mime = "application/x-xz".parse().unwrap();
     let client = new_hyper_client()?;
     let f = fs::File::open(path)?;
-    let mut stream = ProgressIndicator::wrap_reader(f)?;
-    stream.progress().set_message("Uploading ...");
+    let mut stream = ProgressReader::new(f)?;
     Multipart::new()
         .add_stream("file", &mut stream, Some(info.sdk_id()), Some(mime))
         .client_request(&client, url)?;
-    stream.progress().finish("Done Uploading SDK");
+    stream.progress().finish_and_clear();
     Ok(())
 }
 

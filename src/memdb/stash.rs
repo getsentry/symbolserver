@@ -14,12 +14,13 @@ use std::sync::{Arc, RwLock};
 use serde_json;
 use xz2::write::XzDecoder;
 use chrono::UTC;
+use indicatif::{ProgressBar, ProgressStyle, style};
 
 use super::read::MemDb;
 use super::super::config::Config;
 use super::super::sdk::SdkInfo;
 use super::super::s3::S3;
-use super::super::utils::{ProgressIndicator, copy_with_progress, HumanDuration,
+use super::super::utils::{copy_with_progress, HumanDuration,
                           IgnorePatterns, Rev};
 use super::super::{Result, ResultExt, ErrorKind};
 
@@ -223,18 +224,20 @@ impl MemDbStash {
         // XXX: the progress bar here can stall out because we currently
         // need to buffer the download into memory in the s3 code :(
         let progress = if options.user_facing {
-            ProgressIndicator::new(sdk.size() as usize)
+            ProgressBar::new(sdk.size())
         } else {
             info!("updating {}", sdk.info());
-            ProgressIndicator::disabled()
+            ProgressBar::hidden()
         };
+        progress.set_style(ProgressStyle::default_bar()
+            .template("{wide_bar} {bytes}/{total_bytes}"));
         let started = UTC::now();
-        progress.set_message(&format!("Synchronizing {}", sdk.info()));
+        println!("{} {}", style("Updating").green(), sdk.info());
         let mut src = self.s3.download_sdk(sdk)?;
         let dst = fs::File::create(self.path.join(sdk.info().memdb_filename()))?;
         let mut dst = XzDecoder::new(dst);
         copy_with_progress(&progress, &mut src, &mut dst)?;
-        progress.finish(&format!("Synchronized {}", sdk.info()));
+        progress.finish_and_clear();
 
         let duration = UTC::now() - started;
         if !options.user_facing {
@@ -245,7 +248,7 @@ impl MemDbStash {
 
     fn remove_sdk(&self, sdk: &RemoteSdk, options: &SyncOptions) -> Result<()> {
         if options.user_facing {
-            info!("  Deleting {}", sdk.info());
+            info!("{} {}", style("Deleting").red(), sdk.info());
         } else {
             info!("removing {}", sdk.info());
         }
@@ -347,7 +350,7 @@ impl MemDbStash {
                         self.memdbs.write().unwrap().remove(sdk_info);
                         changed_something = true;
                     } else if options.user_facing {
-                        println!("  ⸰ Unchanged {}", sdk_info);
+                        println!("{} {}", style("Unchanged").cyan(), sdk_info);
                     } else {
                         debug!("unchanged sdk {}", sdk_info);
                     }
@@ -363,7 +366,7 @@ impl MemDbStash {
                 }
             } else {
                 if options.user_facing {
-                    println!("  ⸰ Ignored {} by config", sdk_info);
+                    println!("{} {} by config", style("Ignored").yellow(), sdk_info);
                 } else {
                     debug!("ignored sdk {} by config", sdk_info);
                 }
