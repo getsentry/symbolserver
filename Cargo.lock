@@ -19,7 +19,7 @@ dependencies = [
  "md5 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "memmap 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "multipart 0.11.0 (git+https://github.com/mitsuhiko/multipart?rev=24c43635e71566dd9c28ff31e1eecc943e8fd3a7)",
+ "multipart 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "openssl-probe 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -520,8 +520,8 @@ dependencies = [
 
 [[package]]
 name = "multipart"
-version = "0.11.0"
-source = "git+https://github.com/mitsuhiko/multipart?rev=24c43635e71566dd9c28ff31e1eecc943e8fd3a7#24c43635e71566dd9c28ff31e1eecc943e8fd3a7"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "hyper 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1264,7 +1264,7 @@ dependencies = [
 "checksum mime_guess 1.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "76da6df85047af8c0edfa53f48eb1073012ce1cc95c8fedc0a374f659a89dd65"
 "checksum miniz-sys 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)" = "28eaee17666671fa872e567547e8428e83308ebe5808cdf6a0e28397dbe2c726"
 "checksum msdos_time 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "65ba9d75bcea84e07812618fedf284a64776c2f2ea0cad6bca7f69739695a958"
-"checksum multipart 0.11.0 (git+https://github.com/mitsuhiko/multipart?rev=24c43635e71566dd9c28ff31e1eecc943e8fd3a7)" = "<none>"
+"checksum multipart 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "65ea55ea673966fa285eadafb6e7fb03c7328c7bbad60bea23a483e374eeccb3"
 "checksum native-tls 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b805ee0e8fa268f67a4e5c7f4f80adb8af1fc4428ea0ce5b0ecab1430ef17ec0"
 "checksum num 0.1.36 (registry+https://github.com/rust-lang/crates.io-index)" = "bde7c03b09e7c6a301ee81f6ddf66d7a28ec305699e3d3b056d2fc56470e3120"
 "checksum num-integer 0.1.32 (registry+https://github.com/rust-lang/crates.io-index)" = "fb24d9bfb3f222010df27995441ded1e954f8f69cd35021f6bef02ca9552fb92"
