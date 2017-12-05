@@ -13,7 +13,8 @@ use std::collections::{HashSet, HashMap};
 use uuid::Uuid;
 use xz2::write::XzEncoder;
 use tempfile::tempfile;
-use indicatif::{ProgressBar, ProgressStyle, style, StyledObject};
+use console::{style, StyledObject};
+use indicatif::{ProgressBar, ProgressStyle};
 
 use super::types::{IndexItem, StoredSlice, MemDbHeader, IndexedUuid};
 use super::super::Result;
@@ -40,9 +41,9 @@ struct MemDbBuilder<W> {
 
 fn format_step(step: usize, opts: &DumpOptions) -> StyledObject<String> {
     let steps = if opts.compress {
-        5
+        6
     } else {
-        4
+        5
     };
     style(format!("[{}/{}]", step, steps)).dim()
 }
@@ -88,7 +89,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
     }
 
     fn write_bytes(&self, x: &[u8]) -> Result<usize> {
-        self.with_file(|mut w| {
+        self.with_file(|w| {
             w.write_all(x)?;
             Ok(x.len())
         })
@@ -98,7 +99,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         unsafe {
             let bytes : *const u8 = mem::transmute(x);
             let size = mem::size_of_val(x);
-            self.with_file(|mut w| {
+            self.with_file(|w| {
                 w.write_all(slice::from_raw_parts(bytes, size))?;
                 Ok(size)
             })
@@ -106,14 +107,14 @@ impl<W: Write + Seek> MemDbBuilder<W> {
     }
 
     fn seek(&self, new_pos: usize) -> Result<()> {
-        self.with_file(|mut w| {
+        self.with_file(|w| {
             w.seek(SeekFrom::Start(new_pos as u64))?;
             Ok(())
         })
     }
 
     fn tell(&self) -> Result<usize> {
-        self.with_file(|mut w| {
+        self.with_file(|w| {
             Ok(w.seek(SeekFrom::Current(0))? as usize)
         })
     }
@@ -188,20 +189,29 @@ impl<W: Write + Seek> MemDbBuilder<W> {
 
     fn make_string_slices(&self, strings: &[String], _try_compress: bool) -> Result<Vec<StoredSlice>> {
         let mut slices = vec![];
+        let pb = ProgressBar::new(strings.len() as u64);
+        pb.set_style(ProgressStyle::default_bar()
+            .template("{wide_msg:.dim}\n{wide_bar} {pos:>5}/{len}"));
         for string in strings.iter() {
             let offset = self.tell()?;
+            pb.set_message(&string);
             let len = self.write_bytes(string.as_bytes())?;
             slices.push(StoredSlice::new(offset, len, false));
+            pb.inc(1);
         }
+        pb.finish_and_clear();
         Ok(slices)
     }
 
     fn write_slices(&self, slices: &[StoredSlice], start: &mut u32, len: &mut u32) -> Result<()> {
         *start = self.tell()? as u32;
+        let pb = ProgressBar::new(slices.len() as u64);
         for item in slices.iter() {
             self.write(item)?;
+            pb.inc(1);
         }
         *len = slices.len() as u32;
+        pb.finish_and_clear();
         Ok(())
     }
 
@@ -214,13 +224,19 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         println!("{} Writing metadata", format_step(2, &self.options));
         // start by writing out the index of the variants and record the slices.
         let mut slices = vec![];
+        let pb = ProgressBar::new(self.variants.iter().map(|x| x.iter().count()).sum::<usize>() as u64);
+        pb.set_style(ProgressStyle::default_bar()
+            .template("{wide_msg:.dim}\n{wide_bar} {pos:>5}/{len}"));
         for variant in self.variants.iter() {
             let offset = self.tell()?;
             for index_item in variant {
+                pb.set_message(&self.object_uuid_mapping[index_item.src_id() as usize].0);
                 self.write(index_item)?;
+                pb.inc(1);
             }
             slices.push(StoredSlice::new(offset, (self.tell()? - offset), false));
         }
+        pb.finish_and_clear();
         self.write_slices(&slices[..], &mut header.variants_start,
                           &mut header.variants_count)?;
 
@@ -247,14 +263,15 @@ impl<W: Write + Seek> MemDbBuilder<W> {
         self.write_slices(&slices[..], &mut header.object_names_start,
                           &mut header.object_names_count)?;
 
-        println!("{} Writing symbols", format_step(3, &self.options));
+        println!("{} Writing symbol strings", format_step(3, &self.options));
 
         // now write out all the symbols
         let slices = self.make_string_slices(&self.symbols[..], true)?;
+        println!("{} Writing symbol index", format_step(4, &self.options));
         self.write_slices(&slices[..], &mut header.symbols_start,
                           &mut header.symbols_count)?;
 
-        println!("{} Writing headers", format_step(4, &self.options));
+        println!("{} Writing headers", format_step(5, &self.options));
 
         let file_size = self.tell()?;
 
@@ -267,7 +284,7 @@ impl<W: Write + Seek> MemDbBuilder<W> {
 
         // compress if necessary
         if self.options.compress {
-            println!("{} Compressing", format_step(5, &self.options));
+            println!("{} Compressing", format_step(6, &self.options));
             let pb = ProgressBar::new(file_size as u64);
             pb.set_style(ProgressStyle::default_bar()
                 .template("{wide_bar} {bytes}/{total_bytes}"));
@@ -302,7 +319,7 @@ pub fn dump_memdb<W: Write + Seek>(writer: W, info: &SdkInfo,
     let mut builder = MemDbBuilder::new(writer, info, opts)?;
     let pb = ProgressBar::new(objects.file_count() as u64);
     pb.set_style(ProgressStyle::default_bar()
-        .template("{msg:.dim}\n{wide_bar} {pos:>5}/{len}"));
+        .template("{wide_msg:.dim}\n{wide_bar} {pos:>5}/{len}"));
     for obj_res in objects {
         let (offset, filename, obj) = obj_res?;
         pb.set_message(&filename);

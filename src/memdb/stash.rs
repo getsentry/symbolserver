@@ -14,7 +14,8 @@ use std::sync::{Arc, RwLock};
 use serde_json;
 use xz2::write::XzDecoder;
 use chrono::UTC;
-use indicatif::{ProgressBar, ProgressStyle, style};
+use console::style;
+use indicatif::{ProgressBar, ProgressStyle};
 
 use super::read::MemDb;
 use super::super::config::Config;

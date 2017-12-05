@@ -14,7 +14,8 @@ use mime::Mime;
 use multipart::client::lazy::Multipart;
 use openssl_probe::init_ssl_cert_env_vars;
 use tempdir::TempDir;
-use indicatif::{style, HumanDuration};
+use console::style;
+use indicatif::HumanDuration;
 
 use super::{Result, ResultExt, Error};
 use super::sdk::{Sdk, SdkInfo, DumpOptions};
