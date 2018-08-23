@@ -4,3 +4,4 @@
 .cargo
 target
 symbols
+cloudbuild.yaml
