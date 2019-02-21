@@ -17,3 +17,4 @@ images: [
   'us.gcr.io/$PROJECT_ID/$REPO_NAME:latest',
   'us.gcr.io/$PROJECT_ID/$REPO_NAME:$COMMIT_SHA',
   ]
+logsBucket: 'gs://sentryio-cloudbuild-logs/symbolserver/'
