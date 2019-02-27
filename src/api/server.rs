@@ -207,7 +207,7 @@ impl ApiServer {
 /// Helper for the handlers to safely load request data.
 pub fn load_request_data<D: Deserialize>(req: &mut Request) -> Result<D> {
     if let Some(&ContentLength(length)) = req.headers.get() {
-        if length > 1024 * 1024 * 2 {
+        if length > 1024 * 1024 * 10 {
             return Err(ApiError::PayloadTooLarge.into());
         }
     } else {
