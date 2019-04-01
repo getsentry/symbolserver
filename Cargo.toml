@@ -50,5 +50,5 @@ openssl-probe = "^0.1.0"
 # We use our own version for now because of
 #   https://github.com/rusoto/rusoto/pull/569
 rusoto = { git = "https://github.com/mitsuhiko/rusoto", features = ["s3"] }
-#mach_object = { git = "https://github.com/flier/rust-macho" }
-mach_object = "^0.1.3"
+mach_object = { git = "https://github.com/mitsuhiko/rust-macho", rev = "07f92884685f75bbebb9c5daa15422dd090b3eda" }
+#mach_object = "^0.1.3"
