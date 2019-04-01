@@ -32,9 +32,9 @@ RUN set -x \
     && tini -h \
     && apt-get purge -y --auto-remove wget
 
-ENV SYMBOLSERVER_VERSION 1.11.0
+ENV SYMBOLSERVER_VERSION 1.12.0
 ENV SYMBOLSERVER_DOWNLOAD_URL https://github.com/getsentry/symbolserver/releases/download/${SYMBOLSERVER_VERSION}/sentry-symbolserver-Linux-x86_64
-ENV SYMBOLSERVER_DOWNLOAD_SHA256 e2891e124ec641b38116fa0128f10668bf01443e0ad614c0b4741c4d07508f95
+ENV SYMBOLSERVER_DOWNLOAD_SHA256 75b8809ff56a822181560eda19c09dc137af0fec0efd35d12611288f144e7c4f
 
 RUN set -ex \
     && apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/* \
