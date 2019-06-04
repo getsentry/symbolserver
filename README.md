@@ -2,6 +2,14 @@
 
 [![Build Status](https://travis-ci.org/getsentry/symbolserver.svg?branch=master)](https://travis-ci.org/getsentry/symbolserver)
 
+## Deprecation Notice
+
+This service is no longer in use by new versions of sentry.  On sentry
+master (and the next release version) all symbolication is handled by the
+new [symbolicator service](https://github.com/getsentry/symbolicator).
+
+----------
+
 This repository implements a symbol server service which Sentry uses for
 symbolication of frames from Apple system SDKs.  If you have Apple SDKs
 you can use the `convert-sdk` command to convert them into a memdb file
